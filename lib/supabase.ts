@@ -21,6 +21,8 @@ export type Decision = {
   action: string;
   qty: number | null;
   entry_price: number | null;
+  exit_price: number | null;
+  realized_pnl_pct: number | null;
   confidence: string | null;
   reasoning: string | null;
   order_id: string | null;

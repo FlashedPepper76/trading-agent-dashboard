@@ -57,6 +57,9 @@ export default function Nav() {
           <Link href="/" style={linkStyle(pathname === "/")}>
             OVERVIEW
           </Link>
+          <Link href="/compare" style={linkStyle(pathname === "/compare")}>
+            COMPARE
+          </Link>
           {AGENT_IDS.map((id) => (
             <Link
               key={id}
