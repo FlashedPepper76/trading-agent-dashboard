@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NotifyBell from "./notify-bell";
 
 export default function Nav() {
   const pathname = usePathname();
@@ -28,31 +29,38 @@ export default function Nav() {
         alignItems: "baseline",
         justifyContent: "space-between",
         gap: 16,
+        flexWrap: "wrap",
       }}
     >
-      <div>
-        <div
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 20,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          Agent Log
-        </div>
-        <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-          paper trading — simulated funds only
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <img src="/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: 7, flexShrink: 0 }} />
+        <div>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontWeight: 700,
+              fontSize: 20,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Argus
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
+            paper trading — simulated funds only
+          </div>
         </div>
       </div>
-      <nav style={{ display: "flex", gap: 6 }}>
-        <Link href="/" style={linkStyle(pathname === "/")}>
-          LOG
-        </Link>
-        <Link href="/instructions" style={linkStyle(pathname === "/instructions")}>
-          AGENT BRIEF
-        </Link>
-      </nav>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <NotifyBell />
+        <nav style={{ display: "flex", gap: 6 }}>
+          <Link href="/" style={linkStyle(pathname === "/")}>
+            LOG
+          </Link>
+          <Link href="/instructions" style={linkStyle(pathname === "/instructions")}>
+            AGENT BRIEF
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }

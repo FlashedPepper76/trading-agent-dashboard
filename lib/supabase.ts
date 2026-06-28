@@ -74,3 +74,31 @@ export async function saveInstructions(content: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`Failed to save instructions: ${res.status}`);
 }
+
+export async function saveSubscription(endpoint: string, p256dh: string, auth: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agent_push_subscriptions`, {
+    method: "POST",
+    headers: { ...headers(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ endpoint, p256dh, auth }),
+  });
+  if (!res.ok) throw new Error(`Failed to save subscription: ${res.status}`);
+}
+
+export async function deleteSubscription(endpoint: string): Promise<void> {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/agent_push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`,
+    { method: "DELETE", headers: headers() }
+  );
+  if (!res.ok) throw new Error(`Failed to delete subscription: ${res.status}`);
+}
+
+export type PushSubscriptionRow = { endpoint: string; p256dh: string; auth: string };
+
+export async function getAllSubscriptions(): Promise<PushSubscriptionRow[]> {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/agent_push_subscriptions?select=endpoint,p256dh,auth`,
+    { headers: headers(), cache: "no-store" }
+  );
+  if (!res.ok) throw new Error(`Failed to load subscriptions: ${res.status}`);
+  return res.json();
+}
