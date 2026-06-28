@@ -101,7 +101,8 @@ export default function InstructionsPage() {
               </span>
             ) : updatedAt ? (
               <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
-                last updated {new Date(updatedAt).toLocaleString()}
+                last updated{" "}
+                {new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/New_York" })} ET
               </span>
             ) : null}
           </div>

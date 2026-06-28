@@ -1,13 +1,16 @@
 import { getRuns, type Run, type Decision } from "../lib/supabase";
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return (
+    new Date(iso).toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    }) + " ET"
+  );
 }
 
 function fmtMoney(n: number | null) {
