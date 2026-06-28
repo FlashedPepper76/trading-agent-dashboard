@@ -214,15 +214,17 @@ a.card:hover,
   .mobile-tabbar {
     display: flex;
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 12px;
+    right: 12px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     z-index: 30;
     justify-content: space-around;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: color-mix(in srgb, var(--bg-base) 92%, transparent);
+    padding: 8px 4px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
     backdrop-filter: blur(16px);
-    border-top: 1px solid var(--border-hairline);
+    border: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-card-hover);
   }
 
   .mobile-tabbar-item {
@@ -253,7 +255,7 @@ a.card:hover,
   main {
     padding-left: 14px !important;
     padding-right: 14px !important;
-    padding-bottom: 84px !important;
+    padding-bottom: 112px !important;
   }
 
   header {
