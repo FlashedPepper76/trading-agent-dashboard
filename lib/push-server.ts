@@ -10,7 +10,7 @@
 // (GitHub Actions secrets, never committed).
 export const VAPID_PRIVATE_KEY = "4Wsnh6eXTuesZEZZ7LItUWeO7uc1vBvhglix_7HrxIE";
 export const VAPID_PUBLIC_KEY = "BG8jAKUkVgj3wjjLHulPx_zfYVt4HXDscODCK0x6gOGy6HLFxHAgMOH5Ip5Qa0Jq5bbDQ0Tg_XvVX6LG0Zcj8K0";
-export const VAPID_SUBJECT = "mailto:argus@trading-agent-dashboard.vercel.app";
+export const VAPID_SUBJECT = "mailto:plutus@trading-agent-dashboard.vercel.app";
 
 // Shared secret the trading agent (Paper-trading-agent repo) sends as a
 // header when posting to /api/notify, so the endpoint isn't wide open to

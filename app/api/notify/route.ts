@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await sendToAllSubscriptions(body.title || "Argus", body.body || "", body.url || "/");
+    const result = await sendToAllSubscriptions(body.title || "Plutus", body.body || "", body.url || "/");
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });

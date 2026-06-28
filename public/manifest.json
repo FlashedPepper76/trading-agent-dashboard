@@ -1,6 +1,6 @@
 {
-  "name": "Argus — Paper Trading Agent",
-  "short_name": "Argus",
+  "name": "Plutus — Paper Trading Agent",
+  "short_name": "Plutus",
   "description": "Autonomous AI paper trading agent — log, agent brief, and alerts.",
   "start_url": "/",
   "scope": "/",

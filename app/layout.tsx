@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Argus — Paper Trading Agent",
+  title: "Plutus — Paper Trading Agent",
   description: "Trade log and standing instructions for the autonomous paper trading agent.",
   manifest: "/manifest.json",
   icons: {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Argus",
+    title: "Plutus",
   },
 };
 

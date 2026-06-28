@@ -1,4 +1,4 @@
-// Argus service worker — handles push notifications and lets the app run
+// Plutus service worker — handles push notifications and lets the app run
 // in standalone/installed mode. No offline caching here on purpose: this is
 // a live trading log, stale cached data would be actively misleading.
 
@@ -11,7 +11,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Argus", body: "New activity." };
+  let data = { title: "Plutus", body: "New activity." };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch (e) {

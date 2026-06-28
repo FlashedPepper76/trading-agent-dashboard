@@ -43,7 +43,7 @@ export default function Nav() {
               letterSpacing: "-0.01em",
             }}
           >
-            Argus
+            Plutus
           </div>
           <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
             paper trading — simulated funds only
