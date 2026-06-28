@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import NotifyBell from "./notify-bell";
+import { AGENTS, AGENT_IDS } from "../lib/agents";
 
 export default function Nav() {
   const pathname = usePathname();
 
-  const linkStyle = (active: boolean): React.CSSProperties => ({
+  const linkStyle = (active: boolean, accent?: string): React.CSSProperties => ({
     textDecoration: "none",
     fontFamily: "var(--font-mono)",
     fontSize: 13,
     letterSpacing: "0.04em",
     padding: "6px 12px",
     borderRadius: 6,
-    color: active ? "var(--text-primary)" : "var(--text-muted)",
+    color: active ? accent || "var(--text-primary)" : "var(--text-muted)",
     background: active ? "var(--bg-surface-2)" : "transparent",
     border: active ? "1px solid var(--border-hairline)" : "1px solid transparent",
   });
@@ -43,7 +44,7 @@ export default function Nav() {
               letterSpacing: "-0.01em",
             }}
           >
-            Plutus
+            Trading Agents
           </div>
           <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
             paper trading — simulated funds only
@@ -54,11 +55,17 @@ export default function Nav() {
         <NotifyBell />
         <nav style={{ display: "flex", gap: 6 }}>
           <Link href="/" style={linkStyle(pathname === "/")}>
-            LOG
+            OVERVIEW
           </Link>
-          <Link href="/instructions" style={linkStyle(pathname === "/instructions")}>
-            AGENT BRIEF
-          </Link>
+          {AGENT_IDS.map((id) => (
+            <Link
+              key={id}
+              href={`/agent/${id}`}
+              style={linkStyle(pathname.startsWith(`/agent/${id}`), AGENTS[id].accent)}
+            >
+              {AGENTS[id].label.toUpperCase()}
+            </Link>
+          ))}
         </nav>
       </div>
     </header>

@@ -29,6 +29,7 @@ export type Decision = {
 
 export type Run = {
   id: number;
+  agent_id: string;
   run_at: string;
   market_open: boolean | null;
   account_equity: number | null;
@@ -41,13 +42,14 @@ export type Run = {
   trading_agent_decisions: Decision[];
 };
 
-export async function getRuns(limit = 500, before?: string): Promise<Run[]> {
+export async function getRuns(limit = 500, before?: string, agentId?: string): Promise<Run[]> {
   const params = new URLSearchParams({
     select: "*,trading_agent_decisions(*)",
     order: "run_at.desc",
     limit: String(limit),
   });
   if (before) params.set("run_at", `lt.${before}`);
+  if (agentId) params.set("agent_id", `eq.${agentId}`);
   const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_runs?${params.toString()}`, {
     headers: headers(),
     cache: "no-store",
@@ -56,9 +58,14 @@ export async function getRuns(limit = 500, before?: string): Promise<Run[]> {
   return res.json();
 }
 
-export async function getInstructions(): Promise<{ content: string; updated_at: string }> {
+export async function getLatestRun(agentId: string): Promise<Run | null> {
+  const runs = await getRuns(1, undefined, agentId);
+  return runs[0] ?? null;
+}
+
+export async function getInstructions(agentId: string): Promise<{ content: string; updated_at: string }> {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/agent_instructions?id=eq.1&select=content,updated_at`,
+    `${SUPABASE_URL}/rest/v1/agent_instructions?agent_id=eq.${agentId}&select=content,updated_at`,
     { headers: headers(), cache: "no-store" }
   );
   if (!res.ok) throw new Error(`Failed to load instructions: ${res.status}`);
@@ -66,8 +73,8 @@ export async function getInstructions(): Promise<{ content: string; updated_at: 
   return rows[0];
 }
 
-export async function saveInstructions(content: string): Promise<void> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/agent_instructions?id=eq.1`, {
+export async function saveInstructions(agentId: string, content: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agent_instructions?agent_id=eq.${agentId}`, {
     method: "PATCH",
     headers: headers(),
     body: JSON.stringify({ content, updated_at: new Date().toISOString() }),

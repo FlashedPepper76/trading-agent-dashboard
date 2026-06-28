@@ -61,7 +61,7 @@ export default function NotifyBell() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(key),
       });
-      await reg.showNotification("Plutus", {
+      await reg.showNotification("Trading Agents", {
         body: "Notifications enabled — you'll hear about trades and errors here.",
         icon: "/icon-192.png",
       });

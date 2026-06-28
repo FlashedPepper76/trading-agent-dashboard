@@ -8,7 +8,7 @@ import { sendToAllSubscriptions } from "../../../lib/push-server";
 export async function POST() {
   try {
     const result = await sendToAllSubscriptions(
-      "Plutus",
+      "Trading Agents",
       "Test notification — if you got this, push is working. 🟢",
       "/"
     );

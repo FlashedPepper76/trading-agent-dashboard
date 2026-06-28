@@ -1,376 +1,196 @@
-import { getRuns, type Run, type Decision } from "../lib/supabase";
+import Link from "next/link";
+import { getRuns, type Run } from "../lib/supabase";
+import { AGENTS, AGENT_IDS, type AgentId } from "../lib/agents";
+import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
-function fmtTime(iso: string) {
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) {
+    return <div style={{ height: 36, fontSize: 11, color: "var(--text-faint)" }}>not enough data yet</div>;
+  }
+  const w = 280;
+  const h = 36;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
   return (
-    new Date(iso).toLocaleString("en-US", {
-      timeZone: "America/New_York",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-    }) + " ET"
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block", overflow: "visible" }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
   );
 }
 
-function isSameEtDay(isoA: string, isoB: string) {
-  const opts: Intl.DateTimeFormatOptions = { timeZone: "America/New_York" };
-  return new Date(isoA).toLocaleDateString("en-US", opts) === new Date(isoB).toLocaleDateString("en-US", opts);
-}
+function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadError: string | null }) {
+  const agent = AGENTS[id];
 
-function runHasTrade(run: Run) {
-  return (run.trading_agent_decisions || []).some((d) => d.order_id);
-}
-
-function tradeCount(run: Run) {
-  return (run.trading_agent_decisions || []).filter((d) => d.order_id).length;
-}
-
-function fmtMoney(n: number | null) {
-  if (n === null || n === undefined) return "—";
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-function railColor(decisions: Decision[]) {
-  const acted = decisions.filter((d) => d.order_id);
-  const buys = acted.filter((d) => d.action === "buy").length;
-  const sells = acted.filter((d) => d.action === "sell").length;
-  if (buys === 0 && sells === 0) return "var(--border-hairline)";
-  if (buys > sells) return "var(--accent-buy)";
-  if (sells > buys) return "var(--accent-sell)";
-  return "var(--accent-hold)";
-}
-
-function actionBadge(action: string, executed: boolean) {
-  const colorVar =
-    action === "buy" ? "buy" : action === "sell" ? "sell" : "hold";
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: "0.06em",
-        padding: "2px 7px",
-        borderRadius: 4,
-        color: `var(--accent-${colorVar})`,
-        background: `var(--accent-${colorVar}-dim)`,
-        opacity: executed ? 1 : 0.5,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {action.toUpperCase()}
-      {!executed && " · skipped"}
-    </span>
-  );
-}
-
-function confidenceDots(confidence: string | null) {
-  const level = confidence === "high" ? 3 : confidence === "medium" ? 2 : confidence === "low" ? 1 : 0;
-  return (
-    <span style={{ display: "inline-flex", gap: 3, marginLeft: 8 }} title={confidence || "n/a"}>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          style={{
-            width: 5,
-            height: 5,
-            borderRadius: "50%",
-            background: i < level ? "var(--text-muted)" : "var(--border-hairline)",
-          }}
-        />
-      ))}
-    </span>
-  );
-}
-
-function StatBlock({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 10, letterSpacing: "0.06em", color: "var(--text-faint)", marginBottom: 3 }}>
-        {label.toUpperCase()}
+  if (loadError) {
+    return (
+      <div
+        style={{
+          border: "1px solid var(--border-hairline)",
+          borderRadius: 12,
+          padding: 18,
+          background: "var(--bg-surface)",
+        }}
+      >
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: agent.accent }}>
+          {agent.label}
+        </div>
+        <div style={{ color: "var(--accent-sell)", fontSize: 13, marginTop: 10 }}>
+          Couldn&apos;t load: {loadError}
+        </div>
       </div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: color || "var(--text-primary)" }}>{value}</div>
-    </div>
-  );
-}
+    );
+  }
 
-function SummaryBar({ runs }: { runs: Run[] }) {
-  if (runs.length === 0) return null;
+  if (runs.length === 0) {
+    return (
+      <div
+        style={{
+          border: "1px solid var(--border-hairline)",
+          borderRadius: 12,
+          padding: 18,
+          background: "var(--bg-surface)",
+        }}
+      >
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: agent.accent }}>
+          {agent.label}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>{agent.tagline}</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 16 }}>No runs logged yet.</div>
+        <Link
+          href={`/agent/${id}`}
+          style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none", display: "inline-block", marginTop: 14 }}
+        >
+          view log →
+        </Link>
+      </div>
+    );
+  }
+
+  // Supabase returns newest-first; reverse for the sparkline's left-to-right reading.
+  const chronological = [...runs].reverse();
   const latest = runs[0];
   const oldest = runs[runs.length - 1];
   const equity = latest.account_equity ?? null;
   const baseline = oldest.account_equity ?? null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
+  const pnlColor = pnl === null || pnl === 0 ? "var(--text-primary)" : pnl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
   const today = runs.filter((r) => isSameEtDay(r.run_at, latest.run_at));
   const tradesToday = today.reduce((sum, r) => sum + tradeCount(r), 0);
-  const pnlColor =
-    pnl === null || pnl === 0 ? "var(--text-primary)" : pnl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
+  const equitySeries = chronological.map((r) => r.account_equity).filter((v): v is number => v !== null);
 
   return (
-    <div
+    <Link
+      href={`/agent/${id}`}
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-        gap: 16,
-        background: "var(--bg-surface)",
+        textDecoration: "none",
+        display: "block",
         border: "1px solid var(--border-hairline)",
-        borderRadius: 10,
-        padding: "16px 18px",
-        marginBottom: 24,
+        borderRadius: 12,
+        padding: 18,
+        background: "var(--bg-surface)",
+        transition: "border-color 0.15s",
       }}
     >
-      <StatBlock label="Equity" value={fmtMoney(equity)} />
-      <StatBlock
-        label="P/L since first log"
-        value={
-          pnl === null
-            ? "—"
-            : `${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)}${pnlPct !== null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)` : ""}`
-        }
-        color={pnlColor}
-      />
-      <StatBlock label="Cash" value={fmtMoney(latest.account_cash)} />
-      <StatBlock label="Open positions" value={String(latest.num_open_positions ?? 0)} />
-      <StatBlock label="Runs today" value={String(today.length)} />
-      <StatBlock label="Trades today" value={String(tradesToday)} />
-      <StatBlock label="Last run" value={fmtTime(latest.run_at)} />
-    </div>
-  );
-}
-
-function RunEntry({ run }: { run: Run }) {
-  const decisions = run.trading_agent_decisions || [];
-  const acted = decisions.filter((d) => d.order_id);
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: 16,
-        marginBottom: 28,
-      }}
-    >
-      <div
-        style={{
-          width: 3,
-          borderRadius: 2,
-          background: railColor(decisions),
-          flexShrink: 0,
-        }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 8,
-          }}
-        >
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{fmtTime(run.run_at)}</span>
-          <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
-            equity {fmtMoney(run.account_equity)} · cash {fmtMoney(run.account_cash)} ·{" "}
-            {run.num_open_positions ?? 0} open · {run.model_used || "—"}
-          </span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: agent.accent }}>
+            {agent.label}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.tagline}</div>
         </div>
-
-        {run.error ? (
-          <div
+        {latest.error ? (
+          <span
             style={{
-              fontSize: 13,
+              fontSize: 11,
+              fontWeight: 600,
               color: "var(--accent-sell)",
               background: "var(--accent-sell-dim)",
-              border: "1px solid var(--accent-sell)",
-              borderRadius: 6,
-              padding: "8px 12px",
-              marginBottom: 10,
+              borderRadius: 4,
+              padding: "2px 7px",
+              whiteSpace: "nowrap",
             }}
           >
-            run failed: {run.error}
-          </div>
+            last run failed
+          </span>
         ) : null}
-
-        {run.overall_reasoning ? (
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.55,
-              color: "var(--text-primary)",
-              borderLeft: "2px solid var(--border-hairline)",
-              paddingLeft: 12,
-              margin: "0 0 12px",
-            }}
-          >
-            {run.overall_reasoning}
-          </p>
-        ) : null}
-
-        {run.news_context ? (
-          <details style={{ marginBottom: 12 }}>
-            <summary
-              style={{
-                fontSize: 11,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: "0.04em",
-                color: "var(--text-faint)",
-                cursor: "pointer",
-                userSelect: "none",
-              }}
-            >
-              NEWS / POLITICS / SOCIETY CONTEXT CONSIDERED
-            </summary>
-            <p
-              style={{
-                fontSize: 12.5,
-                lineHeight: 1.6,
-                color: "var(--text-muted)",
-                margin: "8px 0 0",
-                whiteSpace: "pre-line",
-                borderLeft: "2px solid var(--border-hairline)",
-                paddingLeft: 12,
-              }}
-            >
-              {run.news_context}
-            </p>
-          </details>
-        ) : null}
-
-        {decisions.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--text-faint)" }}>no symbols acted on this run</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {decisions.map((d) => (
-              <div
-                key={d.id}
-                style={{
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border-hairline)",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  {actionBadge(d.action, Boolean(d.order_id))}
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{d.symbol}</span>
-                  {d.qty ? (
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.qty} sh</span>
-                  ) : null}
-                  {confidenceDots(d.confidence)}
-                  <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: "auto" }}>
-                    {d.order_status}
-                  </span>
-                </div>
-                {d.reasoning ? (
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
-                    {d.reasoning}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
-    </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 16, gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{fmtMoney(equity)}</div>
+          <div style={{ fontSize: 12.5, color: pnlColor, marginTop: 2 }}>
+            {pnl === null
+              ? "—"
+              : `${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)}${pnlPct !== null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)` : ""} since first log`}
+          </div>
+        </div>
+        <Sparkline values={equitySeries} color={agent.accent} />
+      </div>
+
+      <div style={{ display: "flex", gap: 18, marginTop: 16, fontSize: 12, color: "var(--text-muted)" }}>
+        <span>{latest.num_open_positions ?? 0} open</span>
+        <span>{tradesToday} trade{tradesToday === 1 ? "" : "s"} today</span>
+        <span>last run {fmtTime(latest.run_at)}</span>
+      </div>
+
+      {latest.overall_reasoning ? (
+        <p
+          style={{
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: "var(--text-muted)",
+            marginTop: 12,
+            marginBottom: 0,
+            borderLeft: "2px solid var(--border-hairline)",
+            paddingLeft: 10,
+          }}
+        >
+          {latest.overall_reasoning}
+        </p>
+      ) : null}
+    </Link>
   );
 }
 
-export default async function LogPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ onlyTrades?: string; show?: string }>;
-}) {
-  const params = await searchParams;
-  const onlyTrades = params.onlyTrades === "1";
-  const showCount = Math.max(10, parseInt(params.show || "30", 10) || 30);
-
-  let allRuns: Run[] = [];
-  let loadError: string | null = null;
-
-  try {
-    allRuns = await getRuns(500);
-  } catch (e) {
-    loadError = e instanceof Error ? e.message : "Unknown error";
-  }
-
-  const filtered = onlyTrades ? allRuns.filter(runHasTrade) : allRuns;
-  const visible = filtered.slice(0, showCount);
-  const hasMore = filtered.length > showCount;
-
-  const toggleHref = `/?onlyTrades=${onlyTrades ? "0" : "1"}`;
-  const showMoreHref = `/?onlyTrades=${onlyTrades ? "1" : "0"}&show=${showCount + 30}`;
+export default async function OverviewPage() {
+  const results = await Promise.all(
+    AGENT_IDS.map(async (id) => {
+      try {
+        const runs = await getRuns(500, undefined, id);
+        return { id, runs, loadError: null as string | null };
+      } catch (e) {
+        return { id, runs: [] as Run[], loadError: e instanceof Error ? e.message : "Unknown error" };
+      }
+    })
+  );
 
   return (
     <div>
-      {loadError ? (
-        <div style={{ color: "var(--accent-sell)", fontSize: 13 }}>Couldn&apos;t load the log: {loadError}</div>
-      ) : allRuns.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "40px 0" }}>
-          No runs logged yet. Once the agent runs during market hours, entries will show up here —
-          newest first.
-        </div>
-      ) : (
-        <>
-          <SummaryBar runs={allRuns} />
+      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
+        Two autonomous agents, two philosophies, same infrastructure — separate paper brokerage accounts so
+        neither one's trades affect the other. Tap either card for its full log and reasoning.
+      </p>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: 16,
-            }}
-          >
-            <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
-              showing {visible.length} of {filtered.length}
-              {onlyTrades ? " runs with trades" : " runs"}
-            </span>
-            <a
-              href={toggleHref}
-              style={{
-                fontSize: 12,
-                fontFamily: "var(--font-mono)",
-                color: onlyTrades ? "var(--accent-buy)" : "var(--text-muted)",
-                textDecoration: "none",
-                border: "1px solid var(--border-hairline)",
-                borderRadius: 6,
-                padding: "4px 10px",
-              }}
-            >
-              {onlyTrades ? "✓ only trades" : "show only trades"}
-            </a>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "20px 0" }}>
-              No runs with executed trades yet.
-            </div>
-          ) : (
-            visible.map((run) => <RunEntry key={run.id} run={run} />)
-          )}
-
-          {hasMore ? (
-            <a
-              href={showMoreHref}
-              style={{
-                display: "block",
-                textAlign: "center",
-                fontSize: 13,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-                border: "1px solid var(--border-hairline)",
-                borderRadius: 8,
-                padding: "10px 0",
-                marginTop: 8,
-              }}
-            >
-              Show more (+30)
-            </a>
-          ) : null}
-        </>
-      )}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 16,
+        }}
+      >
+        {results.map(({ id, runs, loadError }) => (
+          <AgentCard key={id} id={id} runs={runs} loadError={loadError} />
+        ))}
+      </div>
     </div>
   );
 }
