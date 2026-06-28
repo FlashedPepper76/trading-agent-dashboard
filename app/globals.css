@@ -19,6 +19,13 @@
 
   --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.55);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.5), 0 20px 40px -16px rgba(0, 0, 0, 0.65);
 }
 
 * {
@@ -35,6 +42,21 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   width: 100%;
+}
+
+/* Soft, fixed ambient glow behind everything — breaks up the flat black
+   without adding any layout weight or scroll-jank (fixed + no pointer
+   events). Sits behind body content via negative z-index. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(560px circle at 12% -6%, var(--accent-buy-dim), transparent 60%),
+    radial-gradient(560px circle at 88% 8%, var(--accent-helios-dim), transparent 60%);
+  opacity: 0.7;
 }
 
 img,
@@ -54,6 +76,7 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent-focus);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 button {
@@ -65,6 +88,164 @@ textarea {
   font-family: var(--font-mono);
 }
 
+/* Slim, unobtrusive scrollbar that matches the dark theme instead of the
+   bright default OS scrollbar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hairline) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-hairline);
+  border-radius: 8px;
+}
+
+/* Shared surface treatment: every bordered panel in the app (agent cards,
+   stat blocks, chart containers, position cards) opts into this for
+   consistent depth + a gentle lift on hover instead of a static flat box. */
+.card {
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+a.card,
+.card.card-interactive {
+  cursor: pointer;
+}
+a.card:hover,
+.card.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: #2c3349 !important;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.btn:hover {
+  border-color: #2c3349;
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 0.15s var(--ease), transform 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.input {
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent-focus) !important;
+  box-shadow: 0 0 0 3px var(--accent-focus-dim, rgba(125, 211, 252, 0.15));
+}
+
+/* Page-transition fade/rise, used by app/page-transition.tsx. Respects
+   reduced-motion below. */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-fade-in {
+  animation: page-fade-in 0.32s var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-in {
+    animation: none;
+  }
+  .card,
+  a.card:hover,
+  .card.card-interactive:hover,
+  .btn,
+  .btn-primary {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Mobile bottom tab bar: hidden by default (desktop/tablet shows the
+   horizontal nav in the header instead), becomes a fixed app-like tab bar
+   on phones. See app/nav.tsx. */
+.mobile-tabbar {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .desktop-nav {
+    display: none !important;
+  }
+
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    justify-content: space-around;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--bg-base) 92%, transparent);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .mobile-tabbar-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    flex: 1;
+    padding: 4px 0 2px;
+    text-decoration: none;
+    transition: color 0.15s var(--ease);
+  }
+
+  .mobile-tabbar-dot {
+    position: absolute;
+    top: -7px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+  }
+}
+
 /* Phones: tighter padding, slightly smaller display type, and a minimum
    tap-target height on links/buttons so things are comfortable with a
    thumb instead of a cursor. */
@@ -72,6 +253,7 @@ textarea {
   main {
     padding-left: 14px !important;
     padding-right: 14px !important;
+    padding-bottom: 84px !important;
   }
 
   header {

@@ -10,6 +10,7 @@ function PositionCard({ position, accent }: { position: Position; accent: string
 
   return (
     <div
+      className="card"
       style={{
         border: "1px solid var(--border-hairline)",
         borderRadius: 10,

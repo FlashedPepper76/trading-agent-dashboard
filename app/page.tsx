@@ -36,6 +36,7 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
   if (loadError) {
     return (
       <div
+        className="card"
         style={{
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,
@@ -56,6 +57,7 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
   if (runs.length === 0) {
     return (
       <div
+        className="card"
         style={{
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,
@@ -94,6 +96,7 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
   return (
     <Link
       href={`/agent/${id}`}
+      className="card"
       style={{
         textDecoration: "none",
         display: "block",
@@ -101,7 +104,6 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
         borderRadius: 12,
         padding: 18,
         background: "var(--bg-surface)",
-        transition: "border-color 0.15s",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>

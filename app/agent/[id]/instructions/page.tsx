@@ -78,6 +78,7 @@ export default function AgentInstructionsPage() {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             spellCheck={false}
+            className="input"
             style={{
               width: "100%",
               minHeight: 480,
@@ -97,14 +98,11 @@ export default function AgentInstructionsPage() {
             <button
               onClick={handleSave}
               disabled={status === "saving"}
+              className="btn-primary"
               style={{
                 background: agent.accent,
                 color: "#0a0c10",
-                border: "none",
-                borderRadius: 6,
                 padding: "9px 18px",
-                fontSize: 13,
-                fontWeight: 600,
                 opacity: status === "saving" ? 0.6 : 1,
               }}
             >

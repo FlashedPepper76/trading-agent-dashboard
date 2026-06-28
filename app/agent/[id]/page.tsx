@@ -75,14 +75,12 @@ export default async function AgentLogPage({
             </span>
             <a
               href={toggleHref}
+              className="btn"
               style={{
                 fontSize: 12,
-                fontFamily: "var(--font-mono)",
                 color: onlyTrades ? agent.accent : "var(--text-muted)",
-                textDecoration: "none",
-                border: "1px solid var(--border-hairline)",
-                borderRadius: 6,
-                padding: "4px 10px",
+                borderRadius: 999,
+                padding: "5px 12px",
               }}
             >
               {onlyTrades ? "✓ only trades" : "show only trades"}
@@ -100,13 +98,11 @@ export default async function AgentLogPage({
           {hasMore ? (
             <a
               href={showMoreHref}
+              className="btn"
               style={{
                 display: "block",
                 textAlign: "center",
                 fontSize: 13,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-                border: "1px solid var(--border-hairline)",
                 borderRadius: 8,
                 padding: "10px 0",
                 marginTop: 8,

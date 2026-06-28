@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Nav from "./nav";
 import PwaRegister from "./pwa-register";
+import PageTransition from "./page-transition";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -46,7 +47,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <PwaRegister />
         <Nav />
-        <main style={{ maxWidth: 880, margin: "0 auto", padding: "0 20px 80px" }}>{children}</main>
+        <main style={{ maxWidth: 880, margin: "0 auto", padding: "0 20px 80px" }}>
+          <PageTransition>{children}</PageTransition>
+        </main>
       </body>
     </html>
   );

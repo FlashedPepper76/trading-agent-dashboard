@@ -40,6 +40,7 @@ function AgentStatsColumn({ id, runs }: { id: AgentId; runs: Run[] }) {
 
   return (
     <div
+      className="card"
       style={{
         border: "1px solid var(--border-hairline)",
         borderRadius: 12,
@@ -120,6 +121,7 @@ export default async function ComparePage() {
       </p>
 
       <div
+        className="card"
         style={{
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,

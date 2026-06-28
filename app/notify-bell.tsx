@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bell, BellOff, BellRing, X } from "lucide-react";
 
 // Public VAPID key — this one is meant to be public, it's sent to the browser
 // as part of every subscribe call. NEXT_PUBLIC_VAPID_KEY can override it if
@@ -101,10 +102,6 @@ export default function NotifyBell() {
     fontSize: 12,
     letterSpacing: "0.03em",
     padding: "6px 10px",
-    borderRadius: 6,
-    border: "1px solid var(--border-hairline)",
-    background: "transparent",
-    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     gap: 6,
@@ -114,8 +111,9 @@ export default function NotifyBell() {
 
   if (status === "denied") {
     return (
-      <span style={{ ...baseStyle, color: "var(--text-faint)", cursor: "default" }} title="Blocked in browser settings">
-        🔕 blocked
+      <span className="btn" style={{ ...baseStyle, color: "var(--text-faint)", cursor: "default" }} title="Blocked in browser settings">
+        <BellOff size={14} strokeWidth={2.25} />
+        blocked
       </span>
     );
   }
@@ -123,19 +121,21 @@ export default function NotifyBell() {
   if (status === "on") {
     return (
       <span style={{ display: "flex", gap: 6 }}>
-        <button onClick={sendTest} style={{ ...baseStyle, color: "var(--accent-buy)" }} title="Send a test notification">
-          🔔 on
+        <button className="btn" onClick={sendTest} style={{ ...baseStyle, color: "var(--accent-buy)" }} title="Send a test notification">
+          <BellRing size={14} strokeWidth={2.25} />
+          on
         </button>
-        <button onClick={disable} style={{ ...baseStyle, color: "var(--text-faint)" }} title="Turn off notifications">
-          ✕
+        <button className="btn" onClick={disable} style={{ ...baseStyle, color: "var(--text-faint)", padding: "6px 8px" }} title="Turn off notifications">
+          <X size={14} strokeWidth={2.25} />
         </button>
       </span>
     );
   }
 
   return (
-    <button onClick={enable} disabled={status === "busy"} style={{ ...baseStyle, color: "var(--text-muted)" }}>
-      {status === "busy" ? "..." : "🔔 enable alerts"}
+    <button className="btn" onClick={enable} disabled={status === "busy"} style={{ ...baseStyle, color: "var(--text-muted)" }}>
+      <Bell size={14} strokeWidth={2.25} />
+      {status === "busy" ? "..." : "enable alerts"}
     </button>
   );
 }

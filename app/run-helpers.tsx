@@ -139,6 +139,7 @@ export function SummaryBar({ runs }: { runs: Run[] }) {
 
   return (
     <div
+      className="card"
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
@@ -305,6 +306,7 @@ export function RunEntry({
             {decisions.map((d) => (
               <div
                 key={d.id}
+                className="card"
                 style={{
                   background: "var(--bg-surface)",
                   border: "1px solid var(--border-hairline)",
