@@ -57,6 +57,7 @@ export async function getPositions(agentId: string): Promise<Position[]> {
 export type Run = {
   id: number;
   agent_id: string;
+  trigger: string | null;
   run_at: string;
   market_open: boolean | null;
   account_equity: number | null;

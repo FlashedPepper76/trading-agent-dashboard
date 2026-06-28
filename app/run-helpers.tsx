@@ -1,5 +1,35 @@
 import type { Run, Decision, Position } from "../lib/supabase";
 
+export function triggerBadge(trigger: string | null) {
+  if (trigger === "workflow_dispatch") {
+    return (
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          padding: "2px 6px",
+          borderRadius: 4,
+          color: "var(--accent-hold)",
+          background: "var(--accent-hold-dim)",
+          whiteSpace: "nowrap",
+        }}
+        title="Manually triggered — not part of the autonomous schedule"
+      >
+        MANUAL
+      </span>
+    );
+  }
+  if (trigger === "schedule") {
+    return (
+      <span style={{ fontSize: 10, color: "var(--text-faint)", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+        scheduled
+      </span>
+    );
+  }
+  return null;
+}
+
 export function fmtTime(iso: string) {
   return (
     new Date(iso).toLocaleString("en-US", {
@@ -105,6 +135,7 @@ export function SummaryBar({ runs }: { runs: Run[] }) {
   const tradesToday = today.reduce((sum, r) => sum + tradeCount(r), 0);
   const pnlColor =
     pnl === null || pnl === 0 ? "var(--text-primary)" : pnl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
+  const lastScheduled = runs.find((r) => r.trigger === "schedule");
 
   return (
     <div
@@ -134,6 +165,11 @@ export function SummaryBar({ runs }: { runs: Run[] }) {
       <StatBlock label="Runs today" value={String(today.length)} />
       <StatBlock label="Trades today" value={String(tradesToday)} />
       <StatBlock label="Last run" value={fmtTime(latest.run_at)} />
+      <StatBlock
+        label="Last autonomous run"
+        value={lastScheduled ? fmtTime(lastScheduled.run_at) : "none yet"}
+        color={lastScheduled ? undefined : "var(--text-faint)"}
+      />
     </div>
   );
 }
@@ -191,7 +227,10 @@ export function RunEntry({
             marginBottom: 8,
           }}
         >
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{fmtTime(run.run_at)}</span>
+          <span style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
+            {fmtTime(run.run_at)}
+            {triggerBadge(run.trigger)}
+          </span>
           <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
             equity {fmtMoney(run.account_equity)} · cash {fmtMoney(run.account_cash)} ·{" "}
             {run.num_open_positions ?? 0} open · {run.model_used || "—"}
