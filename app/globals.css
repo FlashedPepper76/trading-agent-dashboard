@@ -1,0 +1,57 @@
+:root {
+  --bg-base: #0a0c10;
+  --bg-surface: #12151b;
+  --bg-surface-2: #161a22;
+  --border-hairline: #232838;
+  --text-primary: #e7eaf0;
+  --text-muted: #8088a0;
+  --text-faint: #565d72;
+
+  --accent-buy: #34d399;
+  --accent-buy-dim: #34d3991a;
+  --accent-sell: #fb7185;
+  --accent-sell-dim: #fb71851a;
+  --accent-hold: #fbbf24;
+  --accent-hold-dim: #fbbf241a;
+  --accent-focus: #7dd3fc;
+
+  --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-focus);
+  color: #0a0c10;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-focus);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+textarea {
+  font-family: var(--font-mono);
+}
