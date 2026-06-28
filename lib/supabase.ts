@@ -41,11 +41,17 @@ export type Run = {
   trading_agent_decisions: Decision[];
 };
 
-export async function getRuns(limit = 50): Promise<Run[]> {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/trading_agent_runs?select=*,trading_agent_decisions(*)&order=run_at.desc&limit=${limit}`,
-    { headers: headers(), cache: "no-store" }
-  );
+export async function getRuns(limit = 500, before?: string): Promise<Run[]> {
+  const params = new URLSearchParams({
+    select: "*,trading_agent_decisions(*)",
+    order: "run_at.desc",
+    limit: String(limit),
+  });
+  if (before) params.set("run_at", `lt.${before}`);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_runs?${params.toString()}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(`Failed to load runs: ${res.status}`);
   return res.json();
 }
