@@ -33,6 +33,13 @@ body {
   color: var(--text-primary);
   font-family: var(--font-mono);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+img,
+svg {
+  max-width: 100%;
 }
 
 a {
@@ -56,4 +63,25 @@ button {
 
 textarea {
   font-family: var(--font-mono);
+}
+
+/* Phones: tighter padding, slightly smaller display type, and a minimum
+   tap-target height on links/buttons so things are comfortable with a
+   thumb instead of a cursor. */
+@media (max-width: 520px) {
+  main {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  header {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-top: 20px !important;
+  }
+
+  a,
+  button {
+    min-height: 32px;
+  }
 }

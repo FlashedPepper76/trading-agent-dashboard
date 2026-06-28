@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getInstructions, saveInstructions } from "../../../../lib/supabase";
 import { AGENTS, isAgentId, type AgentId } from "../../../../lib/agents";
+import AgentSubNav from "../../../agent-sub-nav";
 
 export default function AgentInstructionsPage() {
   const params = useParams<{ id: string }>();
@@ -50,9 +51,15 @@ export default function AgentInstructionsPage() {
 
   return (
     <div>
-      <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: agent.accent, marginBottom: 6 }}>
-        {agent.label}&apos;s brief
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: agent.accent }}>
+          {agent.label}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
+
+      <AgentSubNav id={validId as AgentId} active="brief" />
+
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640 }}>
         This is {agent.label}&apos;s system prompt — its trading philosophy, what it should prioritize or
         avoid, and any lessons learned. It&apos;s read fresh on every run, so changes here take effect on

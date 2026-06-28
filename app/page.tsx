@@ -5,10 +5,10 @@ import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   if (values.length < 2) {
-    return <div style={{ height: 36, fontSize: 11, color: "var(--text-faint)" }}>not enough data yet</div>;
+    return <div style={{ height: 32, fontSize: 11, color: "var(--text-faint)" }}>not enough data yet</div>;
   }
-  const w = 280;
-  const h = 36;
+  const w = 100;
+  const h = 32;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -20,8 +20,12 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
     })
     .join(" ");
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block", overflow: "visible" }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ display: "block", width: 96, height: 32, flexShrink: 0 }}
+    >
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -124,8 +128,8 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
         ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 16, gap: 12 }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 16, gap: 12, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{fmtMoney(equity)}</div>
           <div style={{ fontSize: 12.5, color: pnlColor, marginTop: 2 }}>
             {pnl === null

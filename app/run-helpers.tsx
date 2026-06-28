@@ -1,4 +1,4 @@
-import type { Run, Decision } from "../lib/supabase";
+import type { Run, Decision, Position } from "../lib/supabase";
 
 export function fmtTime(iso: string) {
   return (
@@ -138,7 +138,36 @@ export function SummaryBar({ runs }: { runs: Run[] }) {
   );
 }
 
-export function RunEntry({ run }: { run: Run }) {
+export function buyPriceLine(d: Decision, positionsBySymbol: Record<string, Position>) {
+  if (d.action !== "buy" || !d.order_id || d.entry_price == null) return null;
+  const bought = fmtMoney(d.entry_price);
+  const pos = positionsBySymbol[d.symbol];
+  if (!pos || pos.current_price == null) {
+    return (
+      <>
+        bought @ {bought}{" "}
+        <span style={{ color: "var(--text-faint)" }}>(current price unavailable — order likely still unfilled)</span>
+      </>
+    );
+  }
+  const current = fmtMoney(pos.current_price);
+  const pl = pos.unrealized_pl_pct;
+  const plColor = pl === null || pl === undefined || pl === 0 ? "var(--text-muted)" : pl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
+  return (
+    <>
+      bought @ {bought} · now {current}{" "}
+      {pl != null ? <span style={{ color: plColor, fontWeight: 600 }}>({pl >= 0 ? "+" : ""}{pl.toFixed(2)}%)</span> : null}
+    </>
+  );
+}
+
+export function RunEntry({
+  run,
+  positionsBySymbol = {},
+}: {
+  run: Run;
+  positionsBySymbol?: Record<string, Position>;
+}) {
   const decisions = run.trading_agent_decisions || [];
 
   return (
@@ -253,6 +282,14 @@ export function RunEntry({ run }: { run: Run }) {
                     {d.order_status}
                   </span>
                 </div>
+                {(() => {
+                  const line = buyPriceLine(d, positionsBySymbol);
+                  return line ? (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
+                      {line}
+                    </div>
+                  ) : null;
+                })()}
                 {d.reasoning ? (
                   <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
                     {d.reasoning}

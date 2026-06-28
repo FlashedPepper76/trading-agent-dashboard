@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getRuns, type Run } from "../../../lib/supabase";
+import { getRuns, getPositions, type Run, type Position } from "../../../lib/supabase";
 import { AGENTS, isAgentId } from "../../../lib/agents";
 import { runHasTrade, SummaryBar, RunEntry } from "../../run-helpers";
+import AgentSubNav from "../../agent-sub-nav";
 
 export default async function AgentLogPage({
   params,
@@ -20,13 +20,16 @@ export default async function AgentLogPage({
   const showCount = Math.max(10, parseInt(sp.show || "30", 10) || 30);
 
   let allRuns: Run[] = [];
+  let positions: Position[] = [];
   let loadError: string | null = null;
 
   try {
-    allRuns = await getRuns(500, undefined, id);
+    [allRuns, positions] = await Promise.all([getRuns(500, undefined, id), getPositions(id)]);
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Unknown error";
   }
+
+  const positionsBySymbol = Object.fromEntries(positions.map((p) => [p.symbol, p]));
 
   const filtered = onlyTrades ? allRuns.filter(runHasTrade) : allRuns;
   const visible = filtered.slice(0, showCount);
@@ -37,29 +40,14 @@ export default async function AgentLogPage({
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18 }}>
-        <div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: agent.accent }}>
-            {agent.label}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: agent.accent }}>
+          {agent.label}
         </div>
-        <Link
-          href={`/agent/${id}/instructions`}
-          style={{
-            textDecoration: "none",
-            fontFamily: "var(--font-mono)",
-            fontSize: 12,
-            color: "var(--text-muted)",
-            border: "1px solid var(--border-hairline)",
-            borderRadius: 6,
-            padding: "6px 10px",
-            whiteSpace: "nowrap",
-          }}
-        >
-          edit brief →
-        </Link>
+        <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
+
+      <AgentSubNav id={id} active="log" />
 
       {loadError ? (
         <div style={{ color: "var(--accent-sell)", fontSize: 13 }}>Couldn&apos;t load the log: {loadError}</div>
@@ -77,6 +65,8 @@ export default async function AgentLogPage({
               justifyContent: "space-between",
               alignItems: "baseline",
               marginBottom: 16,
+              flexWrap: "wrap",
+              gap: 8,
             }}
           >
             <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
@@ -104,7 +94,7 @@ export default async function AgentLogPage({
               No runs with executed trades yet.
             </div>
           ) : (
-            visible.map((run) => <RunEntry key={run.id} run={run} />)
+            visible.map((run) => <RunEntry key={run.id} run={run} positionsBySymbol={positionsBySymbol} />)
           )}
 
           {hasMore ? (

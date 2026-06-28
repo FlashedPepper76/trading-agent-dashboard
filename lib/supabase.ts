@@ -20,12 +20,39 @@ export type Decision = {
   symbol: string;
   action: string;
   qty: number | null;
+  entry_price: number | null;
   confidence: string | null;
   reasoning: string | null;
   order_id: string | null;
   order_status: string | null;
   created_at: string;
 };
+
+export type Position = {
+  id: number;
+  agent_id: string;
+  symbol: string;
+  qty: number;
+  avg_entry_price: number | null;
+  current_price: number | null;
+  unrealized_pl_pct: number | null;
+  market_value: number | null;
+  snapshot_at: string;
+};
+
+export async function getPositions(agentId: string): Promise<Position[]> {
+  const params = new URLSearchParams({
+    agent_id: `eq.${agentId}`,
+    select: "*",
+    order: "market_value.desc",
+  });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_positions?${params.toString()}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load positions: ${res.status}`);
+  return res.json();
+}
 
 export type Run = {
   id: number;
