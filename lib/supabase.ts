@@ -1,5 +1,10 @@
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+// Fallback to the life-dashboard Supabase project so the log still works even if
+// the Vercel project's env vars haven't been set yet. These are the public
+// anon/publishable values (see README — not secrets, RLS controls access).
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://edmysxanjsskjrdfkmaw.supabase.co";
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_KEY || "sb_publishable_mPf4oJ538gA3mlpLihNSvA_Dtz45_Hj";
 
 function headers() {
   return {
