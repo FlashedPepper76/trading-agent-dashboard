@@ -136,6 +136,36 @@ function RunEntry({ run }: { run: Run }) {
           </p>
         ) : null}
 
+        {run.news_context ? (
+          <details style={{ marginBottom: 12 }}>
+            <summary
+              style={{
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: "0.04em",
+                color: "var(--text-faint)",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              NEWS / POLITICS / SOCIETY CONTEXT CONSIDERED
+            </summary>
+            <p
+              style={{
+                fontSize: 12.5,
+                lineHeight: 1.6,
+                color: "var(--text-muted)",
+                margin: "8px 0 0",
+                whiteSpace: "pre-line",
+                borderLeft: "2px solid var(--border-hairline)",
+                paddingLeft: 12,
+              }}
+            >
+              {run.news_context}
+            </p>
+          </details>
+        ) : null}
+
         {decisions.length === 0 ? (
           <div style={{ fontSize: 13, color: "var(--text-faint)" }}>no symbols acted on this run</div>
         ) : (

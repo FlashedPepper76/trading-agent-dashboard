@@ -37,6 +37,7 @@ export type Run = {
   overall_reasoning: string | null;
   model_used: string | null;
   error: string | null;
+  news_context: string | null;
   trading_agent_decisions: Decision[];
 };
 
