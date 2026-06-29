@@ -3,6 +3,7 @@ import { getPositions, type Position } from "../../../../lib/supabase";
 import { AGENTS, isAgentId } from "../../../../lib/agents";
 import { fmtMoney } from "../../../run-helpers";
 import AgentSubNav from "../../../agent-sub-nav";
+import { getTickerName } from "../../../../lib/ticker-names";
 
 function PositionCard({ position, accent }: { position: Position; accent: string }) {
   const pl = position.unrealized_pl_pct;
@@ -19,8 +20,23 @@ function PositionCard({ position, accent }: { position: Position; accent: string
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>{position.symbol}</span>
-        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{position.qty} sh</span>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{position.symbol}</span>
+          {getTickerName(position.symbol) ? (
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--text-faint)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {getTickerName(position.symbol)}
+            </span>
+          ) : null}
+        </span>
+        <span style={{ fontSize: 13, color: "var(--text-muted)", flexShrink: 0 }}>{position.qty} sh</span>
       </div>
 
       <div
