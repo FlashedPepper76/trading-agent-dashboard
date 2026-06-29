@@ -1,4 +1,4 @@
-import type { Run, Decision, Position } from "../lib/supabase";
+import type { Run, Decision, Position, AccountState } from "../lib/supabase";
 
 export function triggerBadge(trigger: string | null) {
   if (trigger === "workflow_dispatch") {
@@ -123,11 +123,17 @@ export function StatBlock({ label, value, color }: { label: string; value: strin
   );
 }
 
-export function SummaryBar({ runs }: { runs: Run[] }) {
+export function SummaryBar({ runs, accountState }: { runs: Run[]; accountState?: AccountState | null }) {
   if (runs.length === 0) return null;
   const latest = runs[0];
   const oldest = runs[runs.length - 1];
-  const equity = latest.account_equity ?? null;
+  // Prefer the high-frequency Alpaca-only snapshot (updates every minute,
+  // independent of the slower Gemini-driven decision cycle) for the
+  // "right now" numbers. Fall back to the latest decision run if the
+  // snapshot job hasn't populated yet.
+  const equity = accountState?.equity ?? latest.account_equity ?? null;
+  const cash = accountState?.cash ?? latest.account_cash ?? null;
+  const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
   const baseline = oldest.account_equity ?? null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
@@ -161,11 +167,15 @@ export function SummaryBar({ runs }: { runs: Run[] }) {
         }
         color={pnlColor}
       />
-      <StatBlock label="Cash" value={fmtMoney(latest.account_cash)} />
-      <StatBlock label="Open positions" value={String(latest.num_open_positions ?? 0)} />
+      <StatBlock label="Cash" value={fmtMoney(cash)} />
+      <StatBlock label="Open positions" value={String(openPositions)} />
       <StatBlock label="Runs today" value={String(today.length)} />
       <StatBlock label="Trades today" value={String(tradesToday)} />
-      <StatBlock label="Last run" value={fmtTime(latest.run_at)} />
+      <StatBlock
+        label={accountState ? "Balance as of" : "Last run"}
+        value={fmtTime(accountState?.updated_at ?? latest.run_at)}
+      />
+      <StatBlock label="Last AI decision" value={fmtTime(latest.run_at)} />
       <StatBlock
         label="Last autonomous run"
         value={lastScheduled ? fmtTime(lastScheduled.run_at) : "none yet"}

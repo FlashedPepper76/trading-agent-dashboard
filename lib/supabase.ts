@@ -42,6 +42,24 @@ export type Position = {
   snapshot_at: string;
 };
 
+export type AccountState = {
+  agent_id: string;
+  equity: number | null;
+  cash: number | null;
+  num_open_positions: number | null;
+  updated_at: string;
+};
+
+export async function getAccountState(agentId: string): Promise<AccountState | null> {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/agent_account_state?agent_id=eq.${agentId}&select=*`,
+    { headers: headers(), cache: "no-store" }
+  );
+  if (!res.ok) throw new Error(`Failed to load account state: ${res.status}`);
+  const rows = await res.json();
+  return rows[0] ?? null;
+}
+
 export async function getPositions(agentId: string): Promise<Position[]> {
   const params = new URLSearchParams({
     agent_id: `eq.${agentId}`,

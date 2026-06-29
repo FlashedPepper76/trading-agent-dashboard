@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getRuns, type Run } from "../lib/supabase";
+import { getRuns, getAccountState, type Run, type AccountState } from "../lib/supabase";
 import { AGENTS, AGENT_IDS, type AgentId } from "../lib/agents";
 import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
@@ -30,7 +30,17 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   );
 }
 
-function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadError: string | null }) {
+function AgentCard({
+  id,
+  runs,
+  accountState,
+  loadError,
+}: {
+  id: AgentId;
+  runs: Run[];
+  accountState: AccountState | null;
+  loadError: string | null;
+}) {
   const agent = AGENTS[id];
 
   if (loadError) {
@@ -84,7 +94,8 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
   const chronological = [...runs].reverse();
   const latest = runs[0];
   const oldest = runs[runs.length - 1];
-  const equity = latest.account_equity ?? null;
+  const equity = accountState?.equity ?? latest.account_equity ?? null;
+  const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
   const baseline = oldest.account_equity ?? null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
@@ -143,9 +154,9 @@ function AgentCard({ id, runs, loadError }: { id: AgentId; runs: Run[]; loadErro
       </div>
 
       <div style={{ display: "flex", gap: 18, marginTop: 16, fontSize: 12, color: "var(--text-muted)" }}>
-        <span>{latest.num_open_positions ?? 0} open</span>
+        <span>{openPositions} open</span>
         <span>{tradesToday} trade{tradesToday === 1 ? "" : "s"} today</span>
-        <span>last run {fmtTime(latest.run_at)}</span>
+        <span>balance as of {fmtTime(accountState?.updated_at ?? latest.run_at)}</span>
       </div>
 
       {latest.overall_reasoning ? (
@@ -171,10 +182,13 @@ export default async function OverviewPage() {
   const results = await Promise.all(
     AGENT_IDS.map(async (id) => {
       try {
-        const runs = await getRuns(500, undefined, id);
-        return { id, runs, loadError: null as string | null };
+        const [runs, accountState] = await Promise.all([
+          getRuns(500, undefined, id),
+          getAccountState(id).catch(() => null),
+        ]);
+        return { id, runs, accountState, loadError: null as string | null };
       } catch (e) {
-        return { id, runs: [] as Run[], loadError: e instanceof Error ? e.message : "Unknown error" };
+        return { id, runs: [] as Run[], accountState: null as AccountState | null, loadError: e instanceof Error ? e.message : "Unknown error" };
       }
     })
   );
@@ -193,8 +207,8 @@ export default async function OverviewPage() {
           gap: 16,
         }}
       >
-        {results.map(({ id, runs, loadError }) => (
-          <AgentCard key={id} id={id} runs={runs} loadError={loadError} />
+        {results.map(({ id, runs, accountState, loadError }) => (
+          <AgentCard key={id} id={id} runs={runs} accountState={accountState} loadError={loadError} />
         ))}
       </div>
     </div>
