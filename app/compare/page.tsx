@@ -4,7 +4,7 @@ import { fmtTime } from "../run-helpers";
 import {
   computeAgentStats,
   capRejectionBreakdown,
-  buildAlignedReturnSeries,
+  buildPerAgentPctSeries,
   fmtPct,
 } from "./compare-helpers";
 import { DualReturnChart } from "./DualReturnChartClient";
@@ -107,7 +107,7 @@ export default async function ComparePage() {
   const runsByAgent: Record<string, Run[]> = {};
   for (const { id, runs } of results) runsByAgent[id] = runs;
 
-  const series = buildAlignedReturnSeries(runsByAgent);
+  const seriesByAgent = buildPerAgentPctSeries(runsByAgent);
   const colors: Record<string, string> = {
     plutus: "var(--accent-buy)",
     helios: "var(--accent-helios)",
@@ -116,8 +116,8 @@ export default async function ComparePage() {
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Plutus vs Helios, head-to-head — % return since each agent&apos;s first logged run, aligned by day since
-        they run on different schedules.
+        Plutus vs Helios, head-to-head — % return since each agent&apos;s first logged run, same chart as the
+        home-screen widget (each agent plotted across its own run history, oldest to latest).
       </p>
 
       <div
@@ -138,7 +138,7 @@ export default async function ComparePage() {
             </div>
           ))}
         </div>
-        <DualReturnChart series={series} agentIds={AGENT_IDS} colors={colors} />
+        <DualReturnChart seriesByAgent={seriesByAgent} agentIds={AGENT_IDS} colors={colors} />
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>

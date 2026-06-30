@@ -1,22 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { AlignedPoint } from "./compare-helpers";
+import { useState } from "react";
+import type { PctSeriesPoint } from "./compare-helpers";
 import { fmtPct, fmtShortDate } from "./compare-helpers";
 import { AGENTS } from "../../lib/agents";
 
 export function DualReturnChart({
-  series,
+  seriesByAgent,
   agentIds,
   colors,
 }: {
-  series: AlignedPoint[];
+  seriesByAgent: Record<string, PctSeriesPoint[]>;
   agentIds: string[];
   colors: Record<string, string>;
 }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverFrac, setHoverFrac] = useState<number | null>(null);
 
-  if (series.length < 2) {
+  const hasEnoughData = agentIds.some((id) => (seriesByAgent[id]?.length ?? 0) >= 2);
+  if (!hasEnoughData) {
     return (
       <div style={{ fontSize: 13, color: "var(--text-faint)", padding: "12px 0" }}>
         Not enough history yet for a comparison chart.
@@ -33,49 +34,51 @@ export function DualReturnChart({
   const plotW = w - padLeft - padRight;
   const plotH = h - padTop - padBottom;
 
-  const allValues = series.flatMap((p) => agentIds.map((id) => p.pctByAgent[id])).filter(
-    (v): v is number => v != null
-  );
+  const allValues = agentIds.flatMap((id) => (seriesByAgent[id] || []).map((p) => p.pct));
   const rawMin = Math.min(0, ...allValues);
   const rawMax = Math.max(0, ...allValues);
-  // pad the domain a bit so lines/extremes aren't flush against the edges
   const pad = Math.max((rawMax - rawMin) * 0.08, 0.5);
   const min = rawMin - pad;
   const max = rawMax + pad;
   const range = max - min || 1;
 
-  const x = (i: number) => padLeft + (i / (series.length - 1)) * plotW;
   const y = (v: number) => padTop + plotH - ((v - min) / range) * plotH;
-  const zeroY = y(0);
 
+  // Each agent's line spans the full plot width on its own index, exactly
+  // like the widget — Plutus's 60+ runs/day and Helios's 1 run/day are not
+  // reconciled onto a shared date axis, they're just two independently
+  // spaced polylines overlaid in the same box.
   const linesByAgent = agentIds.map((id) => {
-    const points = series
-      .map((p, i) => {
-        const v = p.pctByAgent[id];
-        return v == null ? null : { i, x: x(i), y: y(v), v };
-      })
-      .filter((p): p is { i: number; x: number; y: number; v: number } => p !== null);
+    const pts = seriesByAgent[id] || [];
+    const n = pts.length;
+    const points = pts.map((p, i) => ({
+      x: padLeft + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2),
+      y: y(p.pct),
+      pct: p.pct,
+      runAt: p.runAt,
+    }));
     return { id, points, polyline: points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") };
   });
 
-  // y-axis gridlines: 5 evenly spaced ticks across the padded domain
   const yTickCount = 5;
   const yTicks = Array.from({ length: yTickCount }, (_, i) => min + (range * i) / (yTickCount - 1));
-
-  // x-axis: aim for ~6 labels regardless of series length
-  const xTickCount = Math.min(6, series.length);
-  const xTickIdx = Array.from(new Set(
-    Array.from({ length: xTickCount }, (_, i) => Math.round((i / (xTickCount - 1)) * (series.length - 1)))
-  ));
 
   function handleMove(e: React.PointerEvent<SVGRectElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * w;
-    const idx = Math.round(((relX - padLeft) / plotW) * (series.length - 1));
-    setHoverIdx(Math.max(0, Math.min(series.length - 1, idx)));
+    const frac = (relX - padLeft) / plotW;
+    setHoverFrac(Math.max(0, Math.min(1, frac)));
   }
 
-  const hovered = hoverIdx != null ? series[hoverIdx] : null;
+  // For a given hover fraction, find the nearest point on each agent's own
+  // (independently spaced) line.
+  function nearestPoint(id: string) {
+    const pts = seriesByAgent[id] || [];
+    if (pts.length === 0 || hoverFrac == null) return null;
+    const idx = Math.round(hoverFrac * (pts.length - 1));
+    const clamped = Math.max(0, Math.min(pts.length - 1, idx));
+    return pts[clamped];
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -90,7 +93,7 @@ export function DualReturnChart({
               x2={w - padRight}
               y1={y(v)}
               y2={y(v)}
-              stroke={Math.abs(v) < 1e-9 ? "var(--border-hairline)" : "var(--border-hairline)"}
+              stroke="var(--border-hairline)"
               strokeWidth={1}
               strokeDasharray={Math.abs(v) < 1e-9 ? undefined : "2,4"}
               opacity={Math.abs(v) < 1e-9 ? 1 : 0.5}
@@ -122,10 +125,10 @@ export function DualReturnChart({
           />
         ))}
 
-        {hoverIdx != null && (
+        {hoverFrac != null && (
           <line
-            x1={x(hoverIdx)}
-            x2={x(hoverIdx)}
+            x1={padLeft + hoverFrac * plotW}
+            x2={padLeft + hoverFrac * plotW}
             y1={padTop}
             y2={padTop + plotH}
             stroke="var(--text-faint)"
@@ -134,30 +137,25 @@ export function DualReturnChart({
           />
         )}
 
-        {hoverIdx != null &&
-          linesByAgent.map(({ id, points }) => {
-            const p = points.find((pt) => pt.i === hoverIdx);
+        {hoverFrac != null &&
+          agentIds.map((id) => {
+            const p = nearestPoint(id);
             if (!p) return null;
+            const pts = seriesByAgent[id] || [];
+            const idx = pts.indexOf(p);
+            const cx = padLeft + (pts.length > 1 ? (idx / (pts.length - 1)) * plotW : plotW / 2);
             return (
-              <circle key={id} cx={p.x} cy={p.y} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} />
+              <circle key={id} cx={cx} cy={y(p.pct)} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} />
             );
           })}
 
-        {xTickIdx.map((i) => (
-          <text
-            key={i}
-            x={x(i)}
-            y={h - 6}
-            fontSize={10}
-            fontFamily="var(--font-mono)"
-            fill="var(--text-faint)"
-            textAnchor={i === 0 ? "start" : i === series.length - 1 ? "end" : "middle"}
-          >
-            {fmtShortDate(series[i].date)}
-          </text>
-        ))}
+        <text x={padLeft} y={h - 6} fontSize={10} fontFamily="var(--font-mono)" fill="var(--text-faint)" textAnchor="start">
+          oldest
+        </text>
+        <text x={w - padRight} y={h - 6} fontSize={10} fontFamily="var(--font-mono)" fill="var(--text-faint)" textAnchor="end">
+          latest
+        </text>
 
-        {/* transparent capture layer for hover/touch, on top so it always receives events */}
         <rect
           x={padLeft}
           y={padTop}
@@ -165,11 +163,11 @@ export function DualReturnChart({
           height={plotH}
           fill="transparent"
           onPointerMove={handleMove}
-          onPointerLeave={() => setHoverIdx(null)}
+          onPointerLeave={() => setHoverFrac(null)}
         />
       </svg>
 
-      {hovered ? (
+      {hoverFrac != null ? (
         <div
           style={{
             position: "absolute",
@@ -180,25 +178,34 @@ export function DualReturnChart({
             borderRadius: 8,
             padding: "8px 10px",
             fontSize: 11,
-            minWidth: 130,
+            minWidth: 150,
             pointerEvents: "none",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
           }}
         >
-          <div style={{ color: "var(--text-faint)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
-            {fmtShortDate(hovered.date)}
-          </div>
           {agentIds.map((id) => {
-            const v = hovered.pctByAgent[id];
+            const p = nearestPoint(id);
             return (
-              <div key={id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "2px 0" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)" }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors[id], display: "inline-block" }} />
-                  {AGENTS[id as keyof typeof AGENTS]?.label ?? id}
-                </span>
-                <span style={{ fontWeight: 600, color: v == null ? "var(--text-faint)" : v >= 0 ? "var(--accent-buy)" : "var(--accent-sell)" }}>
-                  {fmtPct(v)}
-                </span>
+              <div key={id} style={{ padding: "2px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors[id], display: "inline-block" }} />
+                    {AGENTS[id as keyof typeof AGENTS]?.label ?? id}
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: !p ? "var(--text-faint)" : p.pct >= 0 ? "var(--accent-buy)" : "var(--accent-sell)",
+                    }}
+                  >
+                    {p ? fmtPct(p.pct) : "—"}
+                  </span>
+                </div>
+                {p ? (
+                  <div style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+                    {fmtShortDate(p.runAt.slice(0, 10))}
+                  </div>
+                ) : null}
               </div>
             );
           })}

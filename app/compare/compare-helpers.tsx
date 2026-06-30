@@ -106,7 +106,9 @@ export type AlignedPoint = { date: string; pctByAgent: Record<string, number | n
 
 // Daily-bucketed, forward-filled % return per agent, aligned onto a shared
 // date axis — needed because Plutus runs every minute and Helios runs once
-// a day, so their raw run timestamps never line up.
+// a day, so their raw run timestamps never line up. (Used elsewhere; the
+// compare chart itself now uses buildPerAgentPctSeries below to match the
+// home-screen widget's own chart, which doesn't align by date.)
 export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): AlignedPoint[] {
   const dailyByAgent: Record<string, { byDate: Map<string, number>; start: number | null }> = {};
 
@@ -137,6 +139,29 @@ export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): Al
     }
     return { date, pctByAgent };
   });
+}
+
+export type PctSeriesPoint = { runAt: string; pct: number };
+
+// Same algorithm as the Scriptable widget's toPctSeries/drawComparisonChart:
+// each agent's own equity history (oldest -> newest), % change from that
+// agent's own first equity reading. No calendar-date alignment between
+// agents — each line is plotted across the full chart width on its own
+// run index, exactly like the widget does, since Plutus and Helios run on
+// very different schedules and the widget never tried to reconcile that.
+export function buildPerAgentPctSeries(runsByAgent: Record<string, Run[]>): Record<string, PctSeriesPoint[]> {
+  const result: Record<string, PctSeriesPoint[]> = {};
+  for (const [agentId, runs] of Object.entries(runsByAgent)) {
+    const chronological = [...runs].reverse().filter((r) => r.account_equity != null);
+    const base = chronological[0]?.account_equity ?? null;
+    result[agentId] = base
+      ? chronological.map((r) => ({
+          runAt: r.run_at,
+          pct: ((r.account_equity! - base) / base) * 100,
+        }))
+      : [];
+  }
+  return result;
 }
 
 export function fmtPct(v: number | null) {
