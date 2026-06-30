@@ -4,6 +4,7 @@ import { AGENTS, isAgentId } from "../../../../lib/agents";
 import { fmtMoney } from "../../../run-helpers";
 import AgentSubNav from "../../../agent-sub-nav";
 import { getTickerName } from "../../../../lib/ticker-names";
+import { PortfolioPieChart } from "./PieChart";
 
 function PositionCard({ position, accent }: { position: Position; accent: string }) {
   const pl = position.unrealized_pl_pct;
@@ -138,6 +139,8 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
               </span>
             ) : null}
           </div>
+
+          <PortfolioPieChart positions={positions} totalMarketValue={totalMarketValue} />
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {positions.map((p) => (
