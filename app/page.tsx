@@ -3,7 +3,7 @@ import { getRuns, getAccountState, type Run, type AccountState } from "../lib/su
 import { AGENTS, AGENT_IDS, type AgentId } from "../lib/agents";
 import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
+function Sparkline({ values, color, staggerIndex = 0 }: { values: number[]; color: string; staggerIndex?: number }) {
   if (values.length < 2) {
     return <div style={{ height: 32, fontSize: 11, color: "var(--text-faint)" }}>not enough data yet</div>;
   }
@@ -25,7 +25,21 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
       preserveAspectRatio="none"
       style={{ display: "block", width: 96, height: 32, flexShrink: 0 }}
     >
-      <polyline points={points} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {/* pathLength=1 normalizes stroke-dasharray/offset to 0–1 regardless of
+          actual on-screen length, so the CSS draw-in keyframe works for any
+          series without per-instance math. */}
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        pathLength={1}
+        className="sparkline-draw"
+        style={{ ["--stagger-i" as string]: staggerIndex }}
+      />
     </svg>
   );
 }
@@ -35,23 +49,27 @@ function AgentCard({
   runs,
   accountState,
   loadError,
+  staggerIndex,
 }: {
   id: AgentId;
   runs: Run[];
   accountState: AccountState | null;
   loadError: string | null;
+  staggerIndex: number;
 }) {
   const agent = AGENTS[id];
+  const staggerStyle = { ["--stagger-i" as string]: staggerIndex } as React.CSSProperties;
 
   if (loadError) {
     return (
       <div
-        className="card"
+        className="card stagger-item"
         style={{
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,
           padding: 18,
           background: "var(--bg-surface)",
+          ...staggerStyle,
         }}
       >
         <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: agent.accent }}>
@@ -67,12 +85,13 @@ function AgentCard({
   if (runs.length === 0) {
     return (
       <div
-        className="card"
+        className="card stagger-item"
         style={{
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,
           padding: 18,
           background: "var(--bg-surface)",
+          ...staggerStyle,
         }}
       >
         <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: agent.accent }}>
@@ -107,7 +126,7 @@ function AgentCard({
   return (
     <Link
       href={`/agent/${id}`}
-      className="card"
+      className="card stagger-item"
       style={{
         textDecoration: "none",
         display: "block",
@@ -115,6 +134,7 @@ function AgentCard({
         borderRadius: 12,
         padding: 18,
         background: "var(--bg-surface)",
+        ...staggerStyle,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
@@ -150,7 +170,7 @@ function AgentCard({
               : `${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)}${pnlPct !== null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)` : ""} since first log`}
           </div>
         </div>
-        <Sparkline values={equitySeries} color={agent.accent} />
+        <Sparkline values={equitySeries} color={agent.accent} staggerIndex={staggerIndex} />
       </div>
 
       <div style={{ display: "flex", gap: 18, marginTop: 16, fontSize: 12, color: "var(--text-muted)" }}>
@@ -207,8 +227,8 @@ export default async function OverviewPage() {
           gap: 16,
         }}
       >
-        {results.map(({ id, runs, accountState, loadError }) => (
-          <AgentCard key={id} id={id} runs={runs} accountState={accountState} loadError={loadError} />
+        {results.map(({ id, runs, accountState, loadError }, i) => (
+          <AgentCard key={id} id={id} runs={runs} accountState={accountState} loadError={loadError} staggerIndex={i} />
         ))}
       </div>
     </div>

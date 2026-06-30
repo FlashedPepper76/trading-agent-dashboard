@@ -122,6 +122,8 @@ export function DualReturnChart({
             strokeWidth={2.5}
             strokeLinejoin="round"
             strokeLinecap="round"
+            pathLength={1}
+            className="chart-line-draw"
           />
         ))}
 
@@ -134,6 +136,7 @@ export function DualReturnChart({
             stroke="var(--text-faint)"
             strokeWidth={1}
             strokeDasharray="3,3"
+            className="chart-cursor-fade"
           />
         )}
 
@@ -145,7 +148,7 @@ export function DualReturnChart({
             const idx = pts.indexOf(p);
             const cx = padLeft + (pts.length > 1 ? (idx / (pts.length - 1)) * plotW : plotW / 2);
             return (
-              <circle key={id} cx={cx} cy={y(p.pct)} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} />
+              <circle key={id} cx={cx} cy={y(p.pct)} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} className="chart-dot-pop" />
             );
           })}
 
@@ -169,6 +172,7 @@ export function DualReturnChart({
 
       {hoverFrac != null ? (
         <div
+          className="chart-tooltip-pop"
           style={{
             position: "absolute",
             top: 4,

@@ -24,6 +24,7 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.55);
   --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.5), 0 20px 40px -16px rgba(0, 0, 0, 0.65);
 }
@@ -185,9 +186,112 @@ a.card:hover,
   animation: page-fade-in 0.32s var(--ease) both;
 }
 
+/* Stagger entrance for grids/lists of cards (agent overview, position
+   lists). Each item fades up with a short delay multiplied by --stagger-i,
+   set inline per-item. Rare/occasional (page load, route change only) —
+   never used on anything that re-renders from user interaction. */
+@keyframes stagger-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.stagger-item {
+  animation: stagger-fade-up 0.36s var(--ease-out) both;
+  animation-delay: calc(var(--stagger-i, 0) * 45ms);
+}
+
+/* Sparkline draw-in: relies on pathLength={1} on the SVG element so the
+   dash math is resolution-independent. Plays once on mount/route change. */
+@keyframes sparkline-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.sparkline-draw {
+  stroke-dasharray: 1;
+  animation: sparkline-draw 0.7s var(--ease-out) both;
+  animation-delay: calc(var(--stagger-i, 0) * 45ms + 80ms);
+}
+
+/* Comparison chart: line draws in once on mount, hover tooltip/dot pop in
+   from the point the cursor is at rather than snapping into existence. */
+@keyframes chart-line-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.chart-line-draw {
+  stroke-dasharray: 1;
+  animation: chart-line-draw 0.6s var(--ease-out) both;
+}
+@keyframes chart-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.chart-dot-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chart-pop-in 0.15s var(--ease-out) both;
+}
+.chart-tooltip-pop {
+  transform-origin: top right;
+  animation: chart-pop-in 0.16s var(--ease-out) both;
+}
+.chart-cursor-fade {
+  animation: fade-in 0.12s var(--ease-out) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Sliding pill indicator behind segmented sub-nav tabs (Log/Positions/
+   Brief). Position/width are set inline by AgentSubNav from measured tab
+   rects; only transform animates so it stays on the GPU. */
+.subnav-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 999px;
+  transition: transform 0.22s var(--ease-out), width 0.22s var(--ease-out), background 0.15s var(--ease);
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page-fade-in {
+  .page-fade-in,
+  .stagger-item,
+  .sparkline-draw,
+  .chart-line-draw,
+  .chart-dot-pop,
+  .chart-tooltip-pop,
+  .chart-cursor-fade {
     animation: none;
+  }
+  .sparkline-draw,
+  .chart-line-draw {
+    stroke-dasharray: none;
   }
   .card,
   a.card:hover,
@@ -196,6 +300,9 @@ a.card:hover,
   .btn-primary {
     transition: none;
     transform: none;
+  }
+  .subnav-indicator {
+    transition: none;
   }
 }
 
