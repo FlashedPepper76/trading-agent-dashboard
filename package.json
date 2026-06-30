@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^1.22.0",
     "next": "16.2.9",
     "react": "19.2.7",
@@ -15,6 +16,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "20.14.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",

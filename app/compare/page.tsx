@@ -1,5 +1,5 @@
 import { getRuns, type Run } from "../../lib/supabase";
-import { AGENTS, AGENT_IDS, type AgentId } from "../../lib/agents";
+import { getAllAgents, type AgentMeta } from "../../lib/agents";
 import { fmtTime } from "../run-helpers";
 import {
   computeAgentStats,
@@ -30,8 +30,7 @@ function StatRow({ label, value, color }: { label: string; value: string; color?
   );
 }
 
-function AgentStatsColumn({ id, runs }: { id: AgentId; runs: Run[] }) {
-  const agent = AGENTS[id];
+function AgentStatsColumn({ agent, runs }: { agent: AgentMeta; runs: Run[] }) {
   const stats = computeAgentStats(runs);
   const rejections = capRejectionBreakdown(runs);
   const returnColor =
@@ -96,25 +95,25 @@ function AgentStatsColumn({ id, runs }: { id: AgentId; runs: Run[] }) {
 }
 
 export default async function ComparePage() {
+  const agents = await getAllAgents();
   const results = await Promise.all(
-    AGENT_IDS.map(async (id) => {
+    agents.map(async (agent) => {
       try {
-        const runs = await getRuns(2000, undefined, id);
-        return { id, runs, loadError: null as string | null };
+        const runs = await getRuns(2000, undefined, agent.id);
+        return { agent, runs, loadError: null as string | null };
       } catch (e) {
-        return { id, runs: [] as Run[], loadError: e instanceof Error ? e.message : "Unknown error" };
+        return { agent, runs: [] as Run[], loadError: e instanceof Error ? e.message : "Unknown error" };
       }
     })
   );
 
   const runsByAgent: Record<string, Run[]> = {};
-  for (const { id, runs } of results) runsByAgent[id] = runs;
+  for (const { agent, runs } of results) runsByAgent[agent.id] = runs;
 
   const seriesByAgent = buildPerAgentPctSeries(runsByAgent);
-  const colors: Record<string, string> = {
-    plutus: "var(--accent-buy)",
-    helios: "var(--accent-helios)",
-  };
+  const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
+  const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
+  const agentIds = agents.map((a) => a.id);
 
   // Date range spanning every agent's run history, used to align the
   // benchmark (calendar-time-based) onto the same chart as the agents
@@ -146,10 +145,10 @@ export default async function ComparePage() {
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Plutus vs Helios, head-to-head — % return since each agent&apos;s first logged run, same chart as the
-        home-screen widget (each agent plotted across its own run history, oldest to latest), with the total
-        U.S. stock market (VTI) over the same stretch of calendar time as a reference line — so a dip is easier
-        to tell apart from the agents just making bad calls.
+        Head-to-head — % return since each agent&apos;s first logged run, same chart as the home-screen widget
+        (each agent plotted across its own run history, oldest to latest), with the total U.S. stock market
+        (VTI) over the same stretch of calendar time as a reference line — so a dip is easier to tell apart
+        from an agent just making bad calls.
       </p>
 
       <div
@@ -163,10 +162,10 @@ export default async function ComparePage() {
         }}
       >
         <div style={{ display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
-          {AGENT_IDS.map((id) => (
-            <div key={id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: AGENTS[id].accent }} />
-              <span style={{ color: "var(--text-muted)" }}>{AGENTS[id].label}</span>
+          {agents.map((agent) => (
+            <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: agent.accent }} />
+              <span style={{ color: "var(--text-muted)" }}>{agent.label}</span>
             </div>
           ))}
           {benchmarkSeries.length >= 2 ? (
@@ -180,15 +179,16 @@ export default async function ComparePage() {
         </div>
         <DualReturnChart
           seriesByAgent={seriesByAgent}
-          agentIds={AGENT_IDS}
+          agentIds={agentIds}
           colors={colors}
+          labels={labels}
           benchmarkSeries={benchmarkSeries}
         />
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        {results.map(({ id, runs }) => (
-          <AgentStatsColumn key={id} id={id} runs={runs} />
+        {results.map(({ agent, runs }) => (
+          <AgentStatsColumn key={agent.id} agent={agent} runs={runs} />
         ))}
       </div>
     </div>

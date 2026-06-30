@@ -3,10 +3,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ScrollText, Wallet, FileText } from "lucide-react";
-import { AGENTS, type AgentId } from "../lib/agents";
 
-export default function AgentSubNav({ id, active }: { id: AgentId; active: "log" | "positions" | "brief" }) {
-  const agent = AGENTS[id];
+export default function AgentSubNav({
+  id,
+  accent,
+  active,
+}: {
+  id: string;
+  accent: string;
+  active: "log" | "positions" | "brief";
+}) {
   const tabs = [
     { key: "log" as const, label: "Log", href: `/agent/${id}`, icon: ScrollText },
     { key: "positions" as const, label: "Positions", href: `/agent/${id}/positions`, icon: Wallet },
@@ -53,7 +59,7 @@ export default function AgentSubNav({ id, active }: { id: AgentId; active: "log"
           style={{
             transform: `translateX(${indicator.x - 4}px)`,
             width: indicator.width,
-            background: agent.accent,
+            background: accent,
           }}
         />
       ) : null}

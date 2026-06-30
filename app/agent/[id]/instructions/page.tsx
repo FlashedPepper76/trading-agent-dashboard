@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getInstructions, saveInstructions } from "../../../../lib/supabase";
-import { AGENTS, isAgentId, type AgentId } from "../../../../lib/agents";
+import { getAgentMeta, type AgentMeta } from "../../../../lib/agents";
 import AgentSubNav from "../../../agent-sub-nav";
 
 export default function AgentInstructionsPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const validId: AgentId | null = isAgentId(id) ? id : null;
-  const agent = validId ? AGENTS[validId] : null;
+
+  // undefined = still resolving which agent this is, null = no such agent
+  const [agent, setAgent] = useState<AgentMeta | null | undefined>(undefined);
 
   const [content, setContent] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -18,8 +19,18 @@ export default function AgentInstructionsPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (!validId) return;
-    getInstructions(validId)
+    let cancelled = false;
+    getAgentMeta(id).then((a) => {
+      if (!cancelled) setAgent(a);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!agent) return;
+    getInstructions(agent.id)
       .then((row) => {
         setContent(row.content);
         setUpdatedAt(row.updated_at);
@@ -29,13 +40,13 @@ export default function AgentInstructionsPage() {
         setErrorMsg(e instanceof Error ? e.message : "Unknown error");
         setStatus("error");
       });
-  }, [validId]);
+  }, [agent]);
 
   async function handleSave() {
-    if (!validId) return;
+    if (!agent) return;
     setStatus("saving");
     try {
-      await saveInstructions(validId, content);
+      await saveInstructions(agent.id, content);
       setUpdatedAt(new Date().toISOString());
       setStatus("saved");
       setTimeout(() => setStatus("ready"), 2000);
@@ -45,7 +56,11 @@ export default function AgentInstructionsPage() {
     }
   }
 
-  if (!agent) {
+  if (agent === undefined) {
+    return <div style={{ color: "var(--text-faint)", fontSize: 13 }}>loading...</div>;
+  }
+
+  if (agent === null) {
     return <div style={{ color: "var(--accent-sell)", fontSize: 13 }}>Unknown agent &quot;{id}&quot;.</div>;
   }
 
@@ -58,7 +73,7 @@ export default function AgentInstructionsPage() {
         <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
 
-      <AgentSubNav id={validId as AgentId} active="brief" />
+      <AgentSubNav id={agent.id} accent={agent.accent} active="brief" />
 
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640 }}>
         This is {agent.label}&apos;s system prompt — its trading philosophy, what it should prioritize or

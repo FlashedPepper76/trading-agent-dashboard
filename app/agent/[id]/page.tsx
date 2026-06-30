@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getRuns, getPositions, getAccountState, type Run, type Position, type AccountState } from "../../../lib/supabase";
-import { AGENTS, isAgentId } from "../../../lib/agents";
+import { getAgentMeta } from "../../../lib/agents";
 import { runHasTrade, SummaryBar, RunEntry } from "../../run-helpers";
 import AgentSubNav from "../../agent-sub-nav";
 
@@ -12,8 +12,8 @@ export default async function AgentLogPage({
   searchParams: Promise<{ onlyTrades?: string; show?: string }>;
 }) {
   const { id } = await params;
-  if (!isAgentId(id)) notFound();
-  const agent = AGENTS[id];
+  const agent = await getAgentMeta(id);
+  if (!agent) notFound();
 
   const sp = await searchParams;
   const onlyTrades = sp.onlyTrades === "1";
@@ -52,7 +52,7 @@ export default async function AgentLogPage({
         <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
 
-      <AgentSubNav id={id} active="log" />
+      <AgentSubNav id={id} accent={agent.accent} active="log" />
 
       {loadError ? (
         <div style={{ color: "var(--accent-sell)", fontSize: 13 }}>Couldn&apos;t load the log: {loadError}</div>

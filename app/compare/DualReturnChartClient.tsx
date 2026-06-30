@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { PctSeriesPoint } from "./compare-helpers";
 import { fmtPct, fmtShortDate } from "./compare-helpers";
-import { AGENTS } from "../../lib/agents";
 
 type ChartSeries = {
   id: string;
@@ -17,6 +16,7 @@ export function DualReturnChart({
   seriesByAgent,
   agentIds,
   colors,
+  labels,
   benchmarkSeries,
   benchmarkLabel = "Total market (VTI)",
   benchmarkColor = "var(--accent-benchmark)",
@@ -24,6 +24,7 @@ export function DualReturnChart({
   seriesByAgent: Record<string, PctSeriesPoint[]>;
   agentIds: string[];
   colors: Record<string, string>;
+  labels: Record<string, string>;
   benchmarkSeries?: PctSeriesPoint[];
   benchmarkLabel?: string;
   benchmarkColor?: string;
@@ -32,7 +33,7 @@ export function DualReturnChart({
 
   const allSeries: ChartSeries[] = agentIds.map((id) => ({
     id,
-    label: AGENTS[id as keyof typeof AGENTS]?.label ?? id,
+    label: labels[id] ?? id,
     color: colors[id],
     points: seriesByAgent[id] || [],
   }));

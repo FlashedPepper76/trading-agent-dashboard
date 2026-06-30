@@ -4,6 +4,7 @@ import "./globals.css";
 import Nav from "./nav";
 import PwaRegister from "./pwa-register";
 import PageTransition from "./page-transition";
+import { getAllAgents } from "../lib/agents";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -41,12 +42,13 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const agents = await getAllAgents();
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
         <PwaRegister />
-        <Nav />
+        <Nav agents={agents} />
         <main style={{ maxWidth: 880, margin: "0 auto", padding: "0 20px 80px" }}>
           <PageTransition>{children}</PageTransition>
         </main>

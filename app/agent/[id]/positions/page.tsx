@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getPositions, type Position } from "../../../../lib/supabase";
-import { AGENTS, isAgentId } from "../../../../lib/agents";
+import { getAgentMeta } from "../../../../lib/agents";
 import { fmtMoney } from "../../../run-helpers";
 import AgentSubNav from "../../../agent-sub-nav";
 import { getTickerName } from "../../../../lib/ticker-names";
@@ -79,8 +79,8 @@ function PositionCard({ position, accent, todaySeries }: { position: Position; a
 
 export default async function PositionsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!isAgentId(id)) notFound();
-  const agent = AGENTS[id];
+  const agent = await getAgentMeta(id);
+  if (!agent) notFound();
 
   let positions: Position[] = [];
   let loadError: string | null = null;
@@ -118,7 +118,7 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
         <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
 
-      <AgentSubNav id={id} active="positions" />
+      <AgentSubNav id={id} accent={agent.accent} active="positions" />
 
       {loadError ? (
         <div style={{ color: "var(--accent-sell)", fontSize: 13 }}>Couldn&apos;t load positions: {loadError}</div>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getRuns, getAccountState, type Run, type AccountState } from "../lib/supabase";
-import { AGENTS, AGENT_IDS, type AgentId } from "../lib/agents";
+import { getAllAgents, type AgentMeta } from "../lib/agents";
 import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
 function Sparkline({ values, color, staggerIndex = 0 }: { values: number[]; color: string; staggerIndex?: number }) {
@@ -45,19 +45,19 @@ function Sparkline({ values, color, staggerIndex = 0 }: { values: number[]; colo
 }
 
 function AgentCard({
-  id,
+  agent,
   runs,
   accountState,
   loadError,
   staggerIndex,
 }: {
-  id: AgentId;
+  agent: AgentMeta;
   runs: Run[];
   accountState: AccountState | null;
   loadError: string | null;
   staggerIndex: number;
 }) {
-  const agent = AGENTS[id];
+  const id = agent.id;
   const staggerStyle = { ["--stagger-i" as string]: staggerIndex } as React.CSSProperties;
 
   if (loadError) {
@@ -199,26 +199,44 @@ function AgentCard({
 }
 
 export default async function OverviewPage() {
+  const agents = await getAllAgents();
   const results = await Promise.all(
-    AGENT_IDS.map(async (id) => {
+    agents.map(async (agent) => {
       try {
         const [runs, accountState] = await Promise.all([
-          getRuns(500, undefined, id),
-          getAccountState(id).catch(() => null),
+          getRuns(500, undefined, agent.id),
+          getAccountState(agent.id).catch(() => null),
         ]);
-        return { id, runs, accountState, loadError: null as string | null };
+        return { agent, runs, accountState, loadError: null as string | null };
       } catch (e) {
-        return { id, runs: [] as Run[], accountState: null as AccountState | null, loadError: e instanceof Error ? e.message : "Unknown error" };
+        return { agent, runs: [] as Run[], accountState: null as AccountState | null, loadError: e instanceof Error ? e.message : "Unknown error" };
       }
     })
   );
 
   return (
     <div>
-      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Two autonomous agents, two philosophies, same infrastructure — separate paper brokerage accounts so
-        neither one's trades affect the other. Tap either card for its full log and reasoning.
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 540, margin: 0 }}>
+          Autonomous agents, separate philosophies, same infrastructure — separate paper brokerage accounts so
+          none of their trades affect each other. Tap any card for its full log and reasoning.
+        </p>
+        <Link
+          href="/agents/new"
+          className="btn"
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--text-primary)",
+            borderRadius: 999,
+            padding: "7px 14px",
+            whiteSpace: "nowrap",
+            textDecoration: "none",
+          }}
+        >
+          + Add agent
+        </Link>
+      </div>
 
       <div
         style={{
@@ -227,8 +245,8 @@ export default async function OverviewPage() {
           gap: 16,
         }}
       >
-        {results.map(({ id, runs, accountState, loadError }, i) => (
-          <AgentCard key={id} id={id} runs={runs} accountState={accountState} loadError={loadError} staggerIndex={i} />
+        {results.map(({ agent, runs, accountState, loadError }, i) => (
+          <AgentCard key={agent.id} agent={agent} runs={runs} accountState={accountState} loadError={loadError} staggerIndex={i} />
         ))}
       </div>
     </div>
