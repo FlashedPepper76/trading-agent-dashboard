@@ -199,7 +199,7 @@ export function DualReturnChart({
     return { id, points };
   });
 
-  const tickIdx = [0, Math.floor((series.length - 1) / 2), series.length - 1];
+  const tickIdx = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])];
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "auto", display: "block" }}>

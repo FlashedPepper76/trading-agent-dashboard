@@ -123,10 +123,17 @@ export function StatBlock({ label, value, color }: { label: string; value: strin
   );
 }
 
-export function SummaryBar({ runs, accountState }: { runs: Run[]; accountState?: AccountState | null }) {
+export function SummaryBar({
+  runs,
+  accountState,
+  firstRunEquity,
+}: {
+  runs: Run[];
+  accountState?: AccountState | null;
+  firstRunEquity?: number | null;
+}) {
   if (runs.length === 0) return null;
   const latest = runs[0];
-  const oldest = runs[runs.length - 1];
   // Prefer the high-frequency Alpaca-only snapshot (updates every minute,
   // independent of the slower Gemini-driven decision cycle) for the
   // "right now" numbers. Fall back to the latest decision run if the
@@ -134,7 +141,9 @@ export function SummaryBar({ runs, accountState }: { runs: Run[]; accountState?:
   const equity = accountState?.equity ?? latest.account_equity ?? null;
   const cash = accountState?.cash ?? latest.account_cash ?? null;
   const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
-  const baseline = oldest.account_equity ?? null;
+  // Use the true first run's equity when available (fetched separately so the
+  // 500-run rolling window doesn't corrupt the "since first log" figure).
+  const baseline = firstRunEquity ?? runs[runs.length - 1].account_equity ?? null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
   const today = runs.filter((r) => isSameEtDay(r.run_at, latest.run_at));

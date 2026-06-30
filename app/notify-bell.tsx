@@ -57,11 +57,12 @@ export default function NotifyBell() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
       const key = sub.toJSON();
-      await fetch("/api/push-subscribe", {
+      const saveRes = await fetch("/api/push-subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(key),
       });
+      if (!saveRes.ok) throw new Error("Failed to register subscription on server");
       await reg.showNotification("Trading Agents", {
         body: "Notifications enabled — you'll hear about trades and errors here.",
         icon: "/icon-192.png",
@@ -79,12 +80,15 @@ export default function NotifyBell() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
+        // Revoke the browser subscription first so the push service sees the
+        // unsubscribe before we delete the server record. If the server delete
+        // fails the push service will reject future deliveries with 410 anyway.
+        await sub.unsubscribe();
         await fetch("/api/push-unsubscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         });
-        await sub.unsubscribe();
       }
       setStatus("off");
     } catch (e) {

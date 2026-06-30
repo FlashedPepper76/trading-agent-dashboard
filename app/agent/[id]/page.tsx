@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getRuns, getPositions, getAccountState, type Run, type Position, type AccountState } from "../../../lib/supabase";
+import { getRuns, getPositions, getAccountState, getFirstRun, type Run, type Position, type AccountState } from "../../../lib/supabase";
 import { AGENTS, isAgentId } from "../../../lib/agents";
 import { runHasTrade, SummaryBar, RunEntry } from "../../run-helpers";
 import AgentSubNav from "../../agent-sub-nav";
@@ -22,14 +22,20 @@ export default async function AgentLogPage({
   let allRuns: Run[] = [];
   let positions: Position[] = [];
   let accountState: AccountState | null = null;
+  let firstRunEquity: number | null = null;
   let loadError: string | null = null;
 
   try {
-    [allRuns, positions, accountState] = await Promise.all([
+    const [runsResult, positionsResult, accountStateResult, firstRunResult] = await Promise.all([
       getRuns(500, undefined, id),
       getPositions(id),
       getAccountState(id),
+      getFirstRun(id).catch(() => null),
     ]);
+    allRuns = runsResult;
+    positions = positionsResult;
+    accountState = accountStateResult;
+    firstRunEquity = firstRunResult?.account_equity ?? null;
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Unknown error";
   }
@@ -62,7 +68,7 @@ export default async function AgentLogPage({
         </div>
       ) : (
         <>
-          <SummaryBar runs={allRuns} accountState={accountState} />
+          <SummaryBar runs={allRuns} accountState={accountState} firstRunEquity={firstRunEquity} />
 
           <div
             style={{

@@ -21,8 +21,10 @@ export default function AgentInstructionsPage() {
     if (!validId) return;
     getInstructions(validId)
       .then((row) => {
-        setContent(row.content);
-        setUpdatedAt(row.updated_at);
+        if (row) {
+          setContent(row.content);
+          setUpdatedAt(row.updated_at);
+        }
         setStatus("ready");
       })
       .catch((e) => {
