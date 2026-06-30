@@ -10,7 +10,7 @@ import {
   type PctSeriesPoint,
 } from "./compare-helpers";
 import { DualReturnChart } from "./DualReturnChartClient";
-import { fetchBenchmarkSeries } from "../../lib/benchmark";
+import { fetchRangeSeries } from "../../lib/quotes";
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -131,7 +131,7 @@ export default async function ComparePage() {
   try {
     // VTI tracks the entire U.S. stock market (~3,600+ companies), not just
     // the S&P 500's large-caps — a closer match to "stocks in general."
-    const raw = await fetchBenchmarkSeries(
+    const raw = await fetchRangeSeries(
       "VTI",
       Math.floor(rangeStartMs / 1000) - 86400,
       Math.floor(rangeEndMs / 1000)

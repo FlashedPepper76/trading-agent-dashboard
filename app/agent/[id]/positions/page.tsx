@@ -5,8 +5,10 @@ import { fmtMoney } from "../../../run-helpers";
 import AgentSubNav from "../../../agent-sub-nav";
 import { getTickerName } from "../../../../lib/ticker-names";
 import { PortfolioPieChart } from "./PieChart";
+import { DaySparkline } from "./DaySparkline";
+import { fetchTodaySeries, type QuotePoint } from "../../../../lib/quotes";
 
-function PositionCard({ position, accent }: { position: Position; accent: string }) {
+function PositionCard({ position, accent, todaySeries }: { position: Position; accent: string; todaySeries: QuotePoint[] }) {
   const pl = position.unrealized_pl_pct;
   const plColor = pl === null || pl === undefined || pl === 0 ? "var(--text-muted)" : pl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
 
@@ -68,6 +70,8 @@ function PositionCard({ position, accent }: { position: Position; accent: string
         </div>
       </div>
 
+      <DaySparkline points={todaySeries} />
+
       <div style={{ height: 3, borderRadius: 2, background: accent, opacity: 0.5, marginTop: 12 }} />
     </div>
   );
@@ -88,6 +92,22 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
 
   const totalMarketValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
   const snapshotAt = positions[0]?.snapshot_at;
+
+  const todaySeriesBySymbol: Record<string, QuotePoint[]> = {};
+  if (positions.length > 0) {
+    const results = await Promise.all(
+      positions.map(async (p) => {
+        try {
+          return [p.symbol, await fetchTodaySeries(p.symbol)] as const;
+        } catch {
+          // One symbol's chart data being unavailable shouldn't take down
+          // the rest of the page — just show that card without a sparkline.
+          return [p.symbol, [] as QuotePoint[]] as const;
+        }
+      })
+    );
+    for (const [symbol, series] of results) todaySeriesBySymbol[symbol] = series;
+  }
 
   return (
     <div>
@@ -144,7 +164,7 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {positions.map((p) => (
-              <PositionCard key={p.id} position={p} accent={agent.accent} />
+              <PositionCard key={p.id} position={p} accent={agent.accent} todaySeries={todaySeriesBySymbol[p.symbol] || []} />
             ))}
           </div>
         </>
