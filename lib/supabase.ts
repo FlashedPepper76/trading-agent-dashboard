@@ -64,7 +64,7 @@ export async function getPositions(agentId: string): Promise<Position[]> {
   const params = new URLSearchParams({
     agent_id: `eq.${agentId}`,
     select: "*",
-    order: "market_value.desc",
+    order: "market_value.desc.nullslast",
   });
   const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_positions?${params.toString()}`, {
     headers: headers(),
@@ -111,21 +111,39 @@ export async function getLatestRun(agentId: string): Promise<Run | null> {
   return runs[0] ?? null;
 }
 
-export async function getInstructions(agentId: string): Promise<{ content: string; updated_at: string }> {
+export async function getFirstRun(agentId: string): Promise<{ account_equity: number | null } | null> {
+  const params = new URLSearchParams({
+    select: "account_equity",
+    order: "run_at.asc",
+    limit: "1",
+    agent_id: `eq.${agentId}`,
+  });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_runs?${params.toString()}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load first run: ${res.status}`);
+  const rows = await res.json();
+  return rows[0] ?? null;
+}
+
+export async function getInstructions(agentId: string): Promise<{ content: string; updated_at: string } | null> {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/agent_instructions?agent_id=eq.${agentId}&select=content,updated_at`,
     { headers: headers(), cache: "no-store" }
   );
   if (!res.ok) throw new Error(`Failed to load instructions: ${res.status}`);
   const rows = await res.json();
-  return rows[0];
+  return rows[0] ?? null;
 }
 
 export async function saveInstructions(agentId: string, content: string): Promise<void> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/agent_instructions?agent_id=eq.${agentId}`, {
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify({ content, updated_at: new Date().toISOString() }),
+  // POST with merge-duplicates (upsert) so this works even when no row exists yet.
+  // A plain PATCH matching 0 rows returns 200 silently — nothing would be written.
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agent_instructions`, {
+    method: "POST",
+    headers: { ...headers(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ agent_id: agentId, content, updated_at: new Date().toISOString() }),
   });
   if (!res.ok) throw new Error(`Failed to save instructions: ${res.status}`);
 }

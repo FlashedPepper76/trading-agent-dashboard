@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getRuns, getAccountState, type Run, type AccountState } from "../lib/supabase";
+import { getRuns, getAccountState, getFirstRun, type Run, type AccountState } from "../lib/supabase";
 import { AGENTS, AGENT_IDS, type AgentId } from "../lib/agents";
 import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
 
@@ -34,11 +34,13 @@ function AgentCard({
   id,
   runs,
   accountState,
+  firstRunEquity,
   loadError,
 }: {
   id: AgentId;
   runs: Run[];
   accountState: AccountState | null;
+  firstRunEquity: number | null;
   loadError: string | null;
 }) {
   const agent = AGENTS[id];
@@ -93,10 +95,11 @@ function AgentCard({
   // Supabase returns newest-first; reverse for the sparkline's left-to-right reading.
   const chronological = [...runs].reverse();
   const latest = runs[0];
-  const oldest = runs[runs.length - 1];
   const equity = accountState?.equity ?? latest.account_equity ?? null;
   const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
-  const baseline = oldest.account_equity ?? null;
+  // Use the true first run's equity when available (fetched separately to avoid
+  // the 500-run rolling window skewing the "since first log" P/L figure).
+  const baseline = firstRunEquity ?? runs[runs.length - 1].account_equity ?? null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
   const pnlColor = pnl === null || pnl === 0 ? "var(--text-primary)" : pnl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
@@ -182,13 +185,14 @@ export default async function OverviewPage() {
   const results = await Promise.all(
     AGENT_IDS.map(async (id) => {
       try {
-        const [runs, accountState] = await Promise.all([
+        const [runs, accountState, firstRun] = await Promise.all([
           getRuns(500, undefined, id),
           getAccountState(id).catch(() => null),
+          getFirstRun(id).catch(() => null),
         ]);
-        return { id, runs, accountState, loadError: null as string | null };
+        return { id, runs, accountState, firstRunEquity: firstRun?.account_equity ?? null, loadError: null as string | null };
       } catch (e) {
-        return { id, runs: [] as Run[], accountState: null as AccountState | null, loadError: e instanceof Error ? e.message : "Unknown error" };
+        return { id, runs: [] as Run[], accountState: null as AccountState | null, firstRunEquity: null as number | null, loadError: e instanceof Error ? e.message : "Unknown error" };
       }
     })
   );
@@ -207,8 +211,8 @@ export default async function OverviewPage() {
           gap: 16,
         }}
       >
-        {results.map(({ id, runs, accountState, loadError }) => (
-          <AgentCard key={id} id={id} runs={runs} accountState={accountState} loadError={loadError} />
+        {results.map(({ id, runs, accountState, firstRunEquity, loadError }) => (
+          <AgentCard key={id} id={id} runs={runs} accountState={accountState} firstRunEquity={firstRunEquity} loadError={loadError} />
         ))}
       </div>
     </div>
