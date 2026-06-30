@@ -16,6 +16,8 @@
   --accent-focus: #7dd3fc;
   --accent-helios: #a78bfa;
   --accent-helios-dim: #a78bfa1a;
+  --accent-benchmark: #94a3b8;
+  --accent-benchmark-dim: #94a3b81a;
 
   --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;

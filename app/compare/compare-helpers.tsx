@@ -141,7 +141,12 @@ export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): Al
   });
 }
 
-export type PctSeriesPoint = { runAt: string; pct: number };
+// xFrac is each point's horizontal position on the chart, 0..1. For
+// per-agent series it's just the point's index fraction (see below). For
+// the benchmark series it's a calendar-time fraction instead, so the chart
+// renderer can place every series on a shared x axis without needing to
+// know which kind of series it's looking at.
+export type PctSeriesPoint = { runAt: string; pct: number; xFrac: number };
 
 // Same algorithm as the Scriptable widget's toPctSeries/drawComparisonChart:
 // each agent's own equity history (oldest -> newest), % change from that
@@ -154,14 +159,40 @@ export function buildPerAgentPctSeries(runsByAgent: Record<string, Run[]>): Reco
   for (const [agentId, runs] of Object.entries(runsByAgent)) {
     const chronological = [...runs].reverse().filter((r) => r.account_equity != null);
     const base = chronological[0]?.account_equity ?? null;
+    const n = chronological.length;
     result[agentId] = base
-      ? chronological.map((r) => ({
+      ? chronological.map((r, i) => ({
           runAt: r.run_at,
           pct: ((r.account_equity! - base) / base) * 100,
+          xFrac: n > 1 ? i / (n - 1) : 0.5,
         }))
       : [];
   }
   return result;
+}
+
+// Turns raw benchmark closes (e.g. SPY) into the same % return shape as the
+// agent series, but positioned by actual calendar time (rangeStartMs ->
+// rangeEndMs) rather than by index, since the benchmark has one point per
+// trading day while agents have wildly different run cadences.
+export function buildBenchmarkPctSeries(
+  points: { date: string; close: number }[],
+  rangeStartMs: number,
+  rangeEndMs: number
+): PctSeriesPoint[] {
+  if (points.length === 0) return [];
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+  const base = sorted[0].close;
+  const span = rangeEndMs - rangeStartMs || 1;
+  return sorted.map((p) => {
+    const t = new Date(p.date).getTime();
+    const xFrac = Math.max(0, Math.min(1, (t - rangeStartMs) / span));
+    return {
+      runAt: p.date,
+      pct: ((p.close - base) / base) * 100,
+      xFrac,
+    };
+  });
 }
 
 export function fmtPct(v: number | null) {

@@ -5,18 +5,48 @@ import type { PctSeriesPoint } from "./compare-helpers";
 import { fmtPct, fmtShortDate } from "./compare-helpers";
 import { AGENTS } from "../../lib/agents";
 
+type ChartSeries = {
+  id: string;
+  label: string;
+  color: string;
+  points: PctSeriesPoint[];
+  dashed?: boolean;
+};
+
 export function DualReturnChart({
   seriesByAgent,
   agentIds,
   colors,
+  benchmarkSeries,
+  benchmarkLabel = "S&P 500",
+  benchmarkColor = "var(--accent-benchmark)",
 }: {
   seriesByAgent: Record<string, PctSeriesPoint[]>;
   agentIds: string[];
   colors: Record<string, string>;
+  benchmarkSeries?: PctSeriesPoint[];
+  benchmarkLabel?: string;
+  benchmarkColor?: string;
 }) {
   const [hoverFrac, setHoverFrac] = useState<number | null>(null);
 
-  const hasEnoughData = agentIds.some((id) => (seriesByAgent[id]?.length ?? 0) >= 2);
+  const allSeries: ChartSeries[] = agentIds.map((id) => ({
+    id,
+    label: AGENTS[id as keyof typeof AGENTS]?.label ?? id,
+    color: colors[id],
+    points: seriesByAgent[id] || [],
+  }));
+  if (benchmarkSeries && benchmarkSeries.length >= 2) {
+    allSeries.push({
+      id: "__benchmark",
+      label: benchmarkLabel,
+      color: benchmarkColor,
+      points: benchmarkSeries,
+      dashed: true,
+    });
+  }
+
+  const hasEnoughData = allSeries.some((s) => s.points.length >= 2);
   if (!hasEnoughData) {
     return (
       <div style={{ fontSize: 13, color: "var(--text-faint)", padding: "12px 0" }}>
@@ -34,7 +64,7 @@ export function DualReturnChart({
   const plotW = w - padLeft - padRight;
   const plotH = h - padTop - padBottom;
 
-  const allValues = agentIds.flatMap((id) => (seriesByAgent[id] || []).map((p) => p.pct));
+  const allValues = allSeries.flatMap((s) => s.points.map((p) => p.pct));
   const rawMin = Math.min(0, ...allValues);
   const rawMax = Math.max(0, ...allValues);
   const pad = Math.max((rawMax - rawMin) * 0.08, 0.5);
@@ -43,22 +73,15 @@ export function DualReturnChart({
   const range = max - min || 1;
 
   const y = (v: number) => padTop + plotH - ((v - min) / range) * plotH;
+  const x = (xFrac: number) => padLeft + xFrac * plotW;
 
-  // Each agent's line spans the full plot width on its own index, exactly
-  // like the widget — Plutus's 60+ runs/day and Helios's 1 run/day are not
-  // reconciled onto a shared date axis, they're just two independently
-  // spaced polylines overlaid in the same box.
-  const linesByAgent = agentIds.map((id) => {
-    const pts = seriesByAgent[id] || [];
-    const n = pts.length;
-    const points = pts.map((p, i) => ({
-      x: padLeft + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2),
-      y: y(p.pct),
-      pct: p.pct,
-      runAt: p.runAt,
-    }));
-    return { id, points, polyline: points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") };
-  });
+  // Every series carries its own xFrac (0..1) computed upstream — run-index
+  // fraction for agents, calendar-time fraction for the benchmark — so the
+  // renderer doesn't need to know which kind of series it's drawing.
+  const linesBySeries = allSeries.map((s) => ({
+    ...s,
+    polyline: s.points.map((p) => `${x(p.xFrac).toFixed(1)},${y(p.pct).toFixed(1)}`).join(" "),
+  }));
 
   const yTickCount = 5;
   const yTicks = Array.from({ length: yTickCount }, (_, i) => min + (range * i) / (yTickCount - 1));
@@ -70,14 +93,20 @@ export function DualReturnChart({
     setHoverFrac(Math.max(0, Math.min(1, frac)));
   }
 
-  // For a given hover fraction, find the nearest point on each agent's own
-  // (independently spaced) line.
-  function nearestPoint(id: string) {
-    const pts = seriesByAgent[id] || [];
-    if (pts.length === 0 || hoverFrac == null) return null;
-    const idx = Math.round(hoverFrac * (pts.length - 1));
-    const clamped = Math.max(0, Math.min(pts.length - 1, idx));
-    return pts[clamped];
+  // For a given hover fraction, find the point in this series whose xFrac
+  // is closest — works regardless of how that series is spaced internally.
+  function nearestPoint(points: PctSeriesPoint[]) {
+    if (points.length === 0 || hoverFrac == null) return null;
+    let best = points[0];
+    let bestDist = Math.abs(best.xFrac - hoverFrac);
+    for (const p of points) {
+      const d = Math.abs(p.xFrac - hoverFrac);
+      if (d < bestDist) {
+        best = p;
+        bestDist = d;
+      }
+    }
+    return best;
   }
 
   return (
@@ -113,13 +142,14 @@ export function DualReturnChart({
           </g>
         ))}
 
-        {linesByAgent.map(({ id, polyline }) => (
+        {linesBySeries.map(({ id, polyline, color, dashed }) => (
           <polyline
             key={id}
             points={polyline}
             fill="none"
-            stroke={colors[id]}
-            strokeWidth={2.5}
+            stroke={color}
+            strokeWidth={dashed ? 1.75 : 2.5}
+            strokeDasharray={dashed ? "5,4" : undefined}
             strokeLinejoin="round"
             strokeLinecap="round"
             pathLength={1}
@@ -129,8 +159,8 @@ export function DualReturnChart({
 
         {hoverFrac != null && (
           <line
-            x1={padLeft + hoverFrac * plotW}
-            x2={padLeft + hoverFrac * plotW}
+            x1={x(hoverFrac)}
+            x2={x(hoverFrac)}
             y1={padTop}
             y2={padTop + plotH}
             stroke="var(--text-faint)"
@@ -141,14 +171,11 @@ export function DualReturnChart({
         )}
 
         {hoverFrac != null &&
-          agentIds.map((id) => {
-            const p = nearestPoint(id);
+          linesBySeries.map(({ id, points, color }) => {
+            const p = nearestPoint(points);
             if (!p) return null;
-            const pts = seriesByAgent[id] || [];
-            const idx = pts.indexOf(p);
-            const cx = padLeft + (pts.length > 1 ? (idx / (pts.length - 1)) * plotW : plotW / 2);
             return (
-              <circle key={id} cx={cx} cy={y(p.pct)} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} className="chart-dot-pop" />
+              <circle key={id} cx={x(p.xFrac)} cy={y(p.pct)} r={3.5} fill={color} stroke="var(--bg-surface)" strokeWidth={1.5} className="chart-dot-pop" />
             );
           })}
 
@@ -187,14 +214,14 @@ export function DualReturnChart({
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
           }}
         >
-          {agentIds.map((id) => {
-            const p = nearestPoint(id);
+          {linesBySeries.map(({ id, label, color, points }) => {
+            const p = nearestPoint(points);
             return (
               <div key={id} style={{ padding: "2px 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors[id], display: "inline-block" }} />
-                    {AGENTS[id as keyof typeof AGENTS]?.label ?? id}
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block" }} />
+                    {label}
                   </span>
                   <span
                     style={{

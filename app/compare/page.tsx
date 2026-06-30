@@ -5,9 +5,12 @@ import {
   computeAgentStats,
   capRejectionBreakdown,
   buildPerAgentPctSeries,
+  buildBenchmarkPctSeries,
   fmtPct,
+  type PctSeriesPoint,
 } from "./compare-helpers";
 import { DualReturnChart } from "./DualReturnChartClient";
+import { fetchBenchmarkSeries } from "../../lib/benchmark";
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -113,11 +116,37 @@ export default async function ComparePage() {
     helios: "var(--accent-helios)",
   };
 
+  // Date range spanning every agent's run history, used to align the
+  // benchmark (calendar-time-based) onto the same chart as the agents
+  // (run-index-based).
+  const allRunTimes = Object.values(runsByAgent)
+    .flatMap((runs) => runs.map((r) => new Date(r.run_at).getTime()))
+    .filter((t) => Number.isFinite(t));
+  const rangeStartMs = allRunTimes.length
+    ? Math.min(...allRunTimes)
+    : Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const rangeEndMs = Date.now();
+
+  let benchmarkSeries: PctSeriesPoint[] = [];
+  try {
+    const raw = await fetchBenchmarkSeries(
+      "SPY",
+      Math.floor(rangeStartMs / 1000) - 86400,
+      Math.floor(rangeEndMs / 1000)
+    );
+    benchmarkSeries = buildBenchmarkPctSeries(raw, rangeStartMs, rangeEndMs);
+  } catch {
+    // If Yahoo's endpoint is unreachable or rate-limited, just skip the
+    // benchmark line rather than breaking the whole compare page.
+    benchmarkSeries = [];
+  }
+
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
         Plutus vs Helios, head-to-head — % return since each agent&apos;s first logged run, same chart as the
-        home-screen widget (each agent plotted across its own run history, oldest to latest).
+        home-screen widget (each agent plotted across its own run history, oldest to latest), with the S&amp;P 500
+        over the same stretch of calendar time as a reference line.
       </p>
 
       <div
@@ -130,15 +159,28 @@ export default async function ComparePage() {
           marginBottom: 20,
         }}
       >
-        <div style={{ display: "flex", gap: 16, marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
           {AGENT_IDS.map((id) => (
             <div key={id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: AGENTS[id].accent }} />
               <span style={{ color: "var(--text-muted)" }}>{AGENTS[id].label}</span>
             </div>
           ))}
+          {benchmarkSeries.length >= 2 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <svg width="14" height="10" style={{ flexShrink: 0 }}>
+                <line x1="0" y1="5" x2="14" y2="5" stroke="var(--accent-benchmark)" strokeWidth="2" strokeDasharray="3,2" />
+              </svg>
+              <span style={{ color: "var(--text-muted)" }}>S&amp;P 500</span>
+            </div>
+          ) : null}
         </div>
-        <DualReturnChart seriesByAgent={seriesByAgent} agentIds={AGENT_IDS} colors={colors} />
+        <DualReturnChart
+          seriesByAgent={seriesByAgent}
+          agentIds={AGENT_IDS}
+          colors={colors}
+          benchmarkSeries={benchmarkSeries}
+        />
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
