@@ -18,7 +18,7 @@ export function DualReturnChart({
   agentIds,
   colors,
   benchmarkSeries,
-  benchmarkLabel = "S&P 500",
+  benchmarkLabel = "Total market (VTI)",
   benchmarkColor = "var(--accent-benchmark)",
 }: {
   seriesByAgent: Record<string, PctSeriesPoint[]>;

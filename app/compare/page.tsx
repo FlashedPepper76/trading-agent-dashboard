@@ -129,8 +129,10 @@ export default async function ComparePage() {
 
   let benchmarkSeries: PctSeriesPoint[] = [];
   try {
+    // VTI tracks the entire U.S. stock market (~3,600+ companies), not just
+    // the S&P 500's large-caps — a closer match to "stocks in general."
     const raw = await fetchBenchmarkSeries(
-      "SPY",
+      "VTI",
       Math.floor(rangeStartMs / 1000) - 86400,
       Math.floor(rangeEndMs / 1000)
     );
@@ -145,8 +147,9 @@ export default async function ComparePage() {
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
         Plutus vs Helios, head-to-head — % return since each agent&apos;s first logged run, same chart as the
-        home-screen widget (each agent plotted across its own run history, oldest to latest), with the S&amp;P 500
-        over the same stretch of calendar time as a reference line.
+        home-screen widget (each agent plotted across its own run history, oldest to latest), with the total
+        U.S. stock market (VTI) over the same stretch of calendar time as a reference line — so a dip is easier
+        to tell apart from the agents just making bad calls.
       </p>
 
       <div
@@ -171,7 +174,7 @@ export default async function ComparePage() {
               <svg width="14" height="10" style={{ flexShrink: 0 }}>
                 <line x1="0" y1="5" x2="14" y2="5" stroke="var(--accent-benchmark)" strokeWidth="2" strokeDasharray="3,2" />
               </svg>
-              <span style={{ color: "var(--text-muted)" }}>S&amp;P 500</span>
+              <span style={{ color: "var(--text-muted)" }}>Total market (VTI)</span>
             </div>
           ) : null}
         </div>

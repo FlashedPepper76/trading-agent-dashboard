@@ -1,6 +1,7 @@
-// Fetches historical daily closes for a benchmark ticker (default: SPY, used
-// as a stand-in for "the whole stock market" / S&P 500) so the compare page
-// can show whether the agents are beating or lagging a simple buy-and-hold.
+// Fetches historical daily closes for a benchmark ticker (default: VTI, a
+// total U.S. stock market index fund — a closer stand-in for "stocks in
+// general" than a large-cap-only index) so the compare page can show
+// whether the agents are beating or lagging a simple buy-and-hold.
 // Yahoo's chart endpoint is unauthenticated and free; no API key needed.
 
 export type BenchmarkPoint = { date: string; close: number };
