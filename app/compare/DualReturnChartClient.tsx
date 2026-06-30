@@ -90,17 +90,17 @@ export function DualReturnChart({
               x2={w - padRight}
               y1={y(v)}
               y2={y(v)}
-              stroke={Math.abs(v) < 1e-9 ? "var(--border-hairline)" : "var(--border-hairline)"}
+              stroke="#334155"
               strokeWidth={1}
               strokeDasharray={Math.abs(v) < 1e-9 ? undefined : "2,4"}
-              opacity={Math.abs(v) < 1e-9 ? 1 : 0.5}
+              opacity={Math.abs(v) < 1e-9 ? 0.9 : 0.4}
             />
             <text
               x={padLeft - 8}
               y={y(v)}
               fontSize={10}
               fontFamily="var(--font-mono)"
-              fill="var(--text-faint)"
+              fill="#64748b"
               textAnchor="end"
               dominantBaseline="middle"
             >
@@ -128,7 +128,7 @@ export function DualReturnChart({
             x2={x(hoverIdx)}
             y1={padTop}
             y2={padTop + plotH}
-            stroke="var(--text-faint)"
+            stroke="#64748b"
             strokeWidth={1}
             strokeDasharray="3,3"
           />
@@ -139,7 +139,7 @@ export function DualReturnChart({
             const p = points.find((pt) => pt.i === hoverIdx);
             if (!p) return null;
             return (
-              <circle key={id} cx={p.x} cy={p.y} r={3.5} fill={colors[id]} stroke="var(--bg-surface)" strokeWidth={1.5} />
+              <circle key={id} cx={p.x} cy={p.y} r={3.5} fill={colors[id]} stroke="#0b1120" strokeWidth={1.5} />
             );
           })}
 
@@ -150,7 +150,7 @@ export function DualReturnChart({
             y={h - 6}
             fontSize={10}
             fontFamily="var(--font-mono)"
-            fill="var(--text-faint)"
+            fill="#64748b"
             textAnchor={i === 0 ? "start" : i === series.length - 1 ? "end" : "middle"}
           >
             {fmtShortDate(series[i].date)}
@@ -175,28 +175,28 @@ export function DualReturnChart({
             position: "absolute",
             top: 4,
             right: 0,
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-hairline)",
+            background: "#11192b",
+            border: "1px solid #334155",
             borderRadius: 8,
             padding: "8px 10px",
             fontSize: 11,
             minWidth: 130,
             pointerEvents: "none",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
           }}
         >
-          <div style={{ color: "var(--text-faint)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+          <div style={{ color: "#64748b", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
             {fmtShortDate(hovered.date)}
           </div>
           {agentIds.map((id) => {
             const v = hovered.pctByAgent[id];
             return (
               <div key={id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "2px 0" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#cbd5e1" }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors[id], display: "inline-block" }} />
                   {AGENTS[id as keyof typeof AGENTS]?.label ?? id}
                 </span>
-                <span style={{ fontWeight: 600, color: v == null ? "var(--text-faint)" : v >= 0 ? "var(--accent-buy)" : "var(--accent-sell)" }}>
+                <span style={{ fontWeight: 600, color: v == null ? "#64748b" : v >= 0 ? "#4ade80" : "#f87171" }}>
                   {fmtPct(v)}
                 </span>
               </div>

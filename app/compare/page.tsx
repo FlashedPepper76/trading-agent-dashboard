@@ -108,9 +108,13 @@ export default async function ComparePage() {
   for (const { id, runs } of results) runsByAgent[id] = runs;
 
   const series = buildAlignedReturnSeries(runsByAgent);
+  // Matches the Scriptable home-screen widget's palette (gold/sky-blue on
+  // navy), kept distinct from the site-wide buy/sell green/red and Helios's
+  // violet accent used elsewhere — this chart is meant to feel like the
+  // widget, not the rest of the dashboard.
   const colors: Record<string, string> = {
-    plutus: "var(--accent-buy)",
-    helios: "var(--accent-helios)",
+    plutus: "#fbbf24",
+    helios: "#38bdf8",
   };
 
   return (
@@ -126,14 +130,14 @@ export default async function ComparePage() {
           border: "1px solid var(--border-hairline)",
           borderRadius: 12,
           padding: 18,
-          background: "var(--bg-surface)",
+          background: "#0b1120",
           marginBottom: 20,
         }}
       >
         <div style={{ display: "flex", gap: 16, marginBottom: 10 }}>
           {AGENT_IDS.map((id) => (
             <div key={id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: AGENTS[id].accent }} />
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors[id] }} />
               <span style={{ color: "var(--text-muted)" }}>{AGENTS[id].label}</span>
             </div>
           ))}
