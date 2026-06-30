@@ -6,8 +6,8 @@ import {
   capRejectionBreakdown,
   buildAlignedReturnSeries,
   fmtPct,
-  DualReturnChart,
 } from "./compare-helpers";
+import { DualReturnChart } from "./DualReturnChartClient";
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
