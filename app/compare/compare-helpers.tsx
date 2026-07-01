@@ -180,10 +180,12 @@ export function buildPerAgentPctSeries(
   return result;
 }
 
-// VTI benchmark: one daily close per trading day, placed at the midpoint
-// of its day-slot so it visually aligns with the agent lines in that day's
-// region. Days with no agent activity (e.g. weekends before agents started)
-// won't appear in daySlotIndex and are simply skipped.
+// VTI benchmark: placed using the same day-slot logic as agent runs so the
+// line has the same visual density. When intraday 1-minute bars are available
+// (written by Plutus's snapshot) the result is ~390 points per trading day,
+// matching Plutus's own run density and giving VTI real shape on the chart.
+// Falls back gracefully to daily-close-only mode (3 points) if intraday
+// data hasn't been collected yet.
 export function buildBenchmarkPctSeries(
   points: { date: string; close: number }[],
   rangeStartMs: number,
@@ -194,23 +196,36 @@ export function buildBenchmarkPctSeries(
   if (points.length === 0) return [];
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
 
-  // Anchor % return to the first VTI close on or after the agents' start date.
+  // Anchor % return to the first VTI price at/after the agents' start date.
   const rangeStartDate = new Date(rangeStartMs).toISOString().slice(0, 10);
   const basePoint = sorted.find((p) => p.date.slice(0, 10) >= rangeStartDate) ?? sorted[0];
   const base = basePoint.close;
 
-  return sorted
-    .map((p) => {
-      const dateStr = p.date.slice(0, 10);
-      const slotIdx = daySlotIndex[dateStr];
-      if (slotIdx === undefined) return null; // skip points outside agent date range
-      return {
+  // Group by calendar date so intraday points get evenly spaced within
+  // their day-slot, exactly like buildPerAgentPctSeries does for agent runs.
+  const byDate = new Map<string, typeof sorted>();
+  for (const p of sorted) {
+    const d = p.date.slice(0, 10);
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(p);
+  }
+
+  const result: PctSeriesPoint[] = [];
+  for (const [dateStr, dayPoints] of byDate) {
+    const slotIdx = daySlotIndex[dateStr];
+    if (slotIdx === undefined) continue; // date outside agent date range
+    const n = dayPoints.length;
+    dayPoints.forEach((p, i) => {
+      const inSlotFrac = n > 1 ? i / (n - 1) : 0.5;
+      result.push({
         runAt: p.date,
         pct: ((p.close - base) / base) * 100,
-        xFrac: (slotIdx + 0.5) / daySlotCount, // midpoint of the day's slot
-      };
-    })
-    .filter((p): p is PctSeriesPoint => p !== null);
+        xFrac: (slotIdx + inSlotFrac) / daySlotCount,
+      });
+    });
+  }
+
+  return result;
 }
 
 export function fmtPct(v: number | null) {
