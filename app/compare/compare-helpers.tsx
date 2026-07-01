@@ -1,9 +1,5 @@
 import type { Run } from "../../lib/supabase";
 
-// order_status values that represent a genuine risk-cap rejection, as
-// opposed to a plain hold or a successfully executed order. cap_note gets
-// folded into order_status before it's ever written (see ai_agent.py
-// _log_decisions), so this is the only field that ever needs checking.
 const CAP_REASONS = new Set([
   "max open positions reached",
   "max new buys per run reached",
@@ -28,7 +24,6 @@ export type AgentStats = {
   lastRunAt: string | null;
 };
 
-// `runs` comes from getRuns(), which returns newest-first.
 export function computeAgentStats(runs: Run[]): AgentStats {
   if (runs.length === 0) {
     return {
@@ -104,11 +99,6 @@ export function capRejectionBreakdown(runs: Run[]): CapRejectionReason[] {
 
 export type AlignedPoint = { date: string; pctByAgent: Record<string, number | null> };
 
-// Daily-bucketed, forward-filled % return per agent, aligned onto a shared
-// date axis — needed because Plutus runs every minute and Helios runs once
-// a day, so their raw run timestamps never line up. (Used elsewhere; the
-// compare chart itself now uses buildPerAgentPctSeries below to match the
-// home-screen widget's own chart, which doesn't align by date.)
 export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): AlignedPoint[] {
   const dailyByAgent: Record<string, { byDate: Map<string, number>; start: number | null }> = {};
 
@@ -117,7 +107,7 @@ export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): Al
     const byDate = new Map<string, number>();
     for (const r of chronological) {
       if (r.account_equity == null) continue;
-      byDate.set(r.run_at.slice(0, 10), r.account_equity); // last value per date wins
+      byDate.set(r.run_at.slice(0, 10), r.account_equity);
     }
     const firstEquity = chronological.find((r) => r.account_equity != null)?.account_equity ?? null;
     dailyByAgent[agentId] = { byDate, start: firstEquity };
@@ -141,78 +131,87 @@ export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): Al
   });
 }
 
-// xFrac is each point's horizontal position on the chart, 0..1. All series
-// (agents and benchmark) now use the same calendar-time reference so that:
-//  - A newer agent like Hermes (started today) correctly appears starting
-//    partway across the chart rather than spanning the full width
-//  - Tooltip dates are consistent across series at the same x position
-//  - VTI aligns with the agent lines instead of being pinned to its own 0–1
 export type PctSeriesPoint = { runAt: string; pct: number; xFrac: number };
 
-// Calendar-time % return per agent. Each agent's line starts at the run_at
-// timestamp of its first equity reading and ends at its last, both mapped
-// onto the shared [rangeStartMs, rangeEndMs] time axis.
+// Day-slot xFrac: each calendar date in the shared axis gets equal width
+// (1/numSlots). Runs within a day are evenly spaced by count within that
+// slot. This eliminates the long diagonal "straight lines" that appear in
+// raw calendar-time xFrac when agents don't run overnight — a 16-hour gap
+// would otherwise span ~30% of the chart as one straight line.
 //
-// Using calendar time (instead of the previous run-index fraction) means:
-//  - Agents that started later appear starting mid-chart (correct)
-//  - The x-axis dates shown from VTI or Plutus match what Hermes's
-//    tooltip would report at the same horizontal position
+// Agents that started later (e.g. Hermes on Jul 1) correctly appear only
+// in their day's slot rather than spanning the full chart width.
 export function buildPerAgentPctSeries(
   runsByAgent: Record<string, Run[]>,
-  rangeStartMs: number,
-  rangeEndMs: number
+  daySlotIndex: Record<string, number>,
+  daySlotCount: number
 ): Record<string, PctSeriesPoint[]> {
-  const tSpan = rangeEndMs - rangeStartMs || 1;
   const result: Record<string, PctSeriesPoint[]> = {};
+
   for (const [agentId, runs] of Object.entries(runsByAgent)) {
     const chronological = [...runs].reverse().filter((r) => r.account_equity != null);
     const base = chronological[0]?.account_equity ?? null;
-    result[agentId] = base
-      ? chronological.map((r) => ({
+    if (!base) { result[agentId] = []; continue; }
+
+    // Group runs by calendar date; Map preserves insertion order (chronological).
+    const byDate = new Map<string, typeof chronological>();
+    for (const r of chronological) {
+      const d = r.run_at.slice(0, 10);
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d)!.push(r);
+    }
+
+    const points: PctSeriesPoint[] = [];
+    for (const [dateStr, dateRuns] of byDate) {
+      const slotIdx = daySlotIndex[dateStr] ?? 0;
+      const n = dateRuns.length;
+      dateRuns.forEach((r, i) => {
+        const inSlotFrac = n > 1 ? i / (n - 1) : 0.5;
+        points.push({
           runAt: r.run_at,
           pct: ((r.account_equity! - base) / base) * 100,
-          xFrac: Math.max(0, Math.min(1, (new Date(r.run_at).getTime() - rangeStartMs) / tSpan)),
-        }))
-      : [];
+          xFrac: (slotIdx + inSlotFrac) / daySlotCount,
+        });
+      });
+    }
+
+    result[agentId] = points;
   }
   return result;
 }
 
-// Turns raw benchmark closes (e.g. VTI) into the same % return shape as the
-// agent series. Uses the same external [rangeStartMs, rangeEndMs] time axis
-// as buildPerAgentPctSeries so all series share one x-axis.
-//
-// Base is anchored to the first VTI close at/after rangeStartMs (the agents'
-// actual start date) so the % return is relative to when the agents began.
-// VTI may start partway across the chart if markets were closed on the first
-// agent run date (e.g. the agents started on a Sunday).
+// VTI benchmark: one daily close per trading day, placed at the midpoint
+// of its day-slot so it visually aligns with the agent lines in that day's
+// region. Days with no agent activity (e.g. weekends before agents started)
+// won't appear in daySlotIndex and are simply skipped.
 export function buildBenchmarkPctSeries(
   points: { date: string; close: number }[],
   rangeStartMs: number,
-  rangeEndMs: number
+  rangeEndMs: number,
+  daySlotIndex: Record<string, number>,
+  daySlotCount: number
 ): PctSeriesPoint[] {
   if (points.length === 0) return [];
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
 
-  // Anchor base to the trading day at/after the agents' first run.
+  // Anchor % return to the first VTI close on or after the agents' start date.
   const rangeStartDate = new Date(rangeStartMs).toISOString().slice(0, 10);
   const basePoint = sorted.find((p) => p.date.slice(0, 10) >= rangeStartDate) ?? sorted[0];
   const base = basePoint.close;
 
-  const tSpan = rangeEndMs - rangeStartMs || 1;
-
-  return sorted.map((p) => {
-    const t = new Date(p.date).getTime();
-    return {
-      runAt: p.date,
-      pct: ((p.close - base) / base) * 100,
-      // Clamp to [0, 1] — VTI points before rangeStart (weekend buffer)
-      // are dropped to 0; points at/after rangeEnd clamp to 1.
-      xFrac: Math.max(0, Math.min(1, (t - rangeStartMs) / tSpan)),
-    };
-  });
+  return sorted
+    .map((p) => {
+      const dateStr = p.date.slice(0, 10);
+      const slotIdx = daySlotIndex[dateStr];
+      if (slotIdx === undefined) return null; // skip points outside agent date range
+      return {
+        runAt: p.date,
+        pct: ((p.close - base) / base) * 100,
+        xFrac: (slotIdx + 0.5) / daySlotCount, // midpoint of the day's slot
+      };
+    })
+    .filter((p): p is PctSeriesPoint => p !== null);
 }
-
 
 export function fmtPct(v: number | null) {
   if (v == null) return "—";
