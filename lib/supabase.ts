@@ -167,18 +167,20 @@ export async function getBenchmarkPrices(
   symbol: string,
   fromDate: string  // YYYY-MM-DD inclusive
 ): Promise<BenchmarkPrice[]> {
+  // Query on price_time (the new PK) so intraday rows are returned alongside
+  // daily ones. price_time >= midnight on fromDate captures everything that day.
   const params = new URLSearchParams({
     symbol: `eq.${symbol}`,
-    price_date: `gte.${fromDate}`,
-    select: "price_date,close",
-    order: "price_date.asc",
+    price_time: `gte.${fromDate}T00:00:00Z`,
+    select: "price_time,close",
+    order: "price_time.asc",
+    limit: "5000", // plenty for any date range the compare page needs
   });
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/benchmark_prices?${params.toString()}`,
     { headers: headers(), cache: "no-store" }
   );
   if (!res.ok) throw new Error(`Failed to load benchmark prices: ${res.status}`);
-  const rows: { price_date: string; close: number }[] = await res.json();
-  // Return in the same QuotePoint shape that compare-helpers expects
-  return rows.map((r) => ({ date: `${r.price_date}T12:00:00Z`, close: r.close }));
+  const rows: { price_time: string; close: number }[] = await res.json();
+  return rows.map((r) => ({ date: r.price_time, close: r.close }));
 }
