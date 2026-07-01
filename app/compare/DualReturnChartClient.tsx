@@ -194,10 +194,19 @@ export function DualReturnChart({
             const firstYear = new Date(daySlots[0] + "T12:00:00Z").getFullYear();
             const lastYear  = new Date(daySlots[n - 1] + "T12:00:00Z").getFullYear();
             const showYear  = firstYear !== lastYear;
+            // When there are many slots, only show ~5 evenly-spaced labels so
+            // they don't overlap. Always include first and last slot.
+            const maxLabels = 5;
+            const labelSlots = new Set<number>(
+              n <= maxLabels
+                ? daySlots.map((_, i) => i)
+                : [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * (n - 1)))
+            );
             return daySlots.map((dateStr, i) => {
+              const showLabel = labelSlots.has(i);
               const d      = new Date(dateStr + "T12:00:00Z");
-              const midX   = x((i + 0.5) / n);        // centered label
-              const leftX  = x(i / n);                // boundary tick
+              const midX   = x((i + 0.5) / n);
+              const leftX  = x(i / n);
               const base   = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
               const label  = base + (showYear && (i === 0 || d.getFullYear() !== firstYear)
                 ? " '" + String(d.getFullYear()).slice(2) : "");
@@ -206,12 +215,14 @@ export function DualReturnChart({
                 <g key={dateStr}>
                   {i > 0 && (
                     <line x1={leftX} x2={leftX} y1={padTop + plotH} y2={padTop + plotH + 5}
-                      stroke="var(--border-hairline)" strokeWidth={1} opacity={0.6} />
+                      stroke="var(--border-hairline)" strokeWidth={1} opacity={0.4} />
                   )}
-                  <text x={midX} y={h - 5} fontSize={9} fontFamily="var(--font-mono)"
-                    fill="var(--text-faint)" textAnchor={anchor}>
-                    {label}
-                  </text>
+                  {showLabel && (
+                    <text x={midX} y={h - 5} fontSize={9} fontFamily="var(--font-mono)"
+                      fill="var(--text-faint)" textAnchor={anchor}>
+                      {label}
+                    </text>
+                  )}
                 </g>
               );
             });
