@@ -6,6 +6,8 @@ import {
   capRejectionBreakdown,
   buildPerAgentPctSeries,
   buildBenchmarkPctSeries,
+  buildPerAgentPctSeriesDaily,
+  buildBenchmarkPctSeriesDaily,
   fmtPct,
   type PctSeriesPoint,
 } from "./compare-helpers";
@@ -164,13 +166,16 @@ export default async function ComparePage() {
     benchmarkSeries = buildBenchmarkPctSeries(rawVTI, rangeStartMs, rangeEndMs, daySlotIndex, daySlotCount);
   }
 
+  // Daily-reset series for the "Since day open" tab
+  const seriesByAgentDaily = buildPerAgentPctSeriesDaily(runsByAgent, daySlotIndex, daySlotCount);
+  let benchmarkSeriesDaily: PctSeriesPoint[] = [];
+  if (rawVTI.length >= 2) {
+    benchmarkSeriesDaily = buildBenchmarkPctSeriesDaily(rawVTI, daySlotIndex, daySlotCount);
+  }
+
   return (
     <div>
-      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Head-to-head — % return since each agent&apos;s first logged run. Each calendar day gets equal
-        chart width so overnight gaps don&apos;t show as straight lines. Newer agents (like Hermes) start
-        mid-chart at their actual start date. Total U.S. stock market (VTI) shown as a reference line.
-      </p>
+
 
       <div
         className="card"
@@ -205,6 +210,8 @@ export default async function ComparePage() {
           labels={labels}
           benchmarkSeries={benchmarkSeries}
           daySlots={daySlots}
+          seriesByAgentDaily={seriesByAgentDaily}
+          benchmarkSeriesDaily={benchmarkSeriesDaily}
         />
       </div>
 
