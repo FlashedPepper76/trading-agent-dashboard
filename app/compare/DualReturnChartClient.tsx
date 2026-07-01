@@ -20,6 +20,7 @@ export function DualReturnChart({
   benchmarkSeries,
   benchmarkLabel = "Total market (VTI)",
   benchmarkColor = "var(--accent-benchmark)",
+  daySlots,
 }: {
   seriesByAgent: Record<string, PctSeriesPoint[]>;
   agentIds: string[];
@@ -28,6 +29,9 @@ export function DualReturnChart({
   benchmarkSeries?: PctSeriesPoint[];
   benchmarkLabel?: string;
   benchmarkColor?: string;
+  // When provided, the x-axis shows one centered date label per calendar day
+  // (day-slot mode) rather than using the nearest-point fallback.
+  daySlots?: string[];
 }) {
   const [hoverFrac, setHoverFrac] = useState<number | null>(null);
 
@@ -180,12 +184,40 @@ export function DualReturnChart({
             );
           })}
 
-        {/* X-axis date ticks: sample 5 evenly-spaced positions, resolve each
-            to a calendar date via the benchmark series (calendar-time-accurate)
-            or the longest agent series as fallback. */}
+        {/* X-axis date labels.
+            Day-slot mode (daySlots prop): one centered label per calendar day at
+            (i + 0.5) / n. Slot-boundary tick marks at i / n separate the days.
+            Fallback: 5 evenly-spaced nearest-point labels (pre-day-slot behaviour). */}
         {(() => {
-          // Prefer VTI benchmark since its xFrac is already calendar-time;
-          // otherwise use whichever agent series has the most points.
+          if (daySlots && daySlots.length >= 2) {
+            const n = daySlots.length;
+            const firstYear = new Date(daySlots[0] + "T12:00:00Z").getFullYear();
+            const lastYear  = new Date(daySlots[n - 1] + "T12:00:00Z").getFullYear();
+            const showYear  = firstYear !== lastYear;
+            return daySlots.map((dateStr, i) => {
+              const d      = new Date(dateStr + "T12:00:00Z");
+              const midX   = x((i + 0.5) / n);        // centered label
+              const leftX  = x(i / n);                // boundary tick
+              const base   = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              const label  = base + (showYear && (i === 0 || d.getFullYear() !== firstYear)
+                ? " '" + String(d.getFullYear()).slice(2) : "");
+              const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+              return (
+                <g key={dateStr}>
+                  {i > 0 && (
+                    <line x1={leftX} x2={leftX} y1={padTop + plotH} y2={padTop + plotH + 5}
+                      stroke="var(--border-hairline)" strokeWidth={1} opacity={0.6} />
+                  )}
+                  <text x={midX} y={h - 5} fontSize={9} fontFamily="var(--font-mono)"
+                    fill="var(--text-faint)" textAnchor={anchor}>
+                    {label}
+                  </text>
+                </g>
+              );
+            });
+          }
+
+          // Fallback: use nearest-point approach when no daySlots provided.
           const refPts =
             benchmarkSeries && benchmarkSeries.length >= 2
               ? benchmarkSeries
@@ -193,14 +225,10 @@ export function DualReturnChart({
                   (best, s) => (s.points.length > best.points.length ? s : best),
                   linesBySeries[0]
                 ).points;
-
           if (!refPts || refPts.length < 2) return null;
-
-          // Detect if the data spans multiple years so we can add a year suffix
           const firstYear = new Date(refPts[0].runAt).getFullYear();
           const lastYear  = new Date(refPts[refPts.length - 1].runAt).getFullYear();
           const showYear  = firstYear !== lastYear;
-
           function nearestDate(frac: number): string {
             let best = refPts[0];
             let bestDist = Math.abs(best.xFrac - frac);
@@ -210,7 +238,6 @@ export function DualReturnChart({
             }
             return best.runAt.slice(0, 10);
           }
-
           function fmtTick(iso: string, frac: number): string {
             const d = new Date(iso + "T12:00:00Z");
             const base = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -219,28 +246,16 @@ export function DualReturnChart({
             }
             return base;
           }
-
-          const tickFracs = [0, 0.25, 0.5, 0.75, 1];
-          return tickFracs.map((frac) => {
+          return [0, 0.25, 0.5, 0.75, 1].map((frac) => {
             const iso  = nearestDate(frac);
             const xPos = x(frac);
             const anchor = frac === 0 ? "start" : frac === 1 ? "end" : "middle";
             return (
               <g key={frac}>
-                <line
-                  x1={xPos} x2={xPos}
-                  y1={padTop + plotH} y2={padTop + plotH + 5}
-                  stroke="var(--border-hairline)"
-                  strokeWidth={1}
-                />
-                <text
-                  x={xPos}
-                  y={h - 5}
-                  fontSize={9}
-                  fontFamily="var(--font-mono)"
-                  fill="var(--text-faint)"
-                  textAnchor={anchor}
-                >
+                <line x1={xPos} x2={xPos} y1={padTop + plotH} y2={padTop + plotH + 5}
+                  stroke="var(--border-hairline)" strokeWidth={1} />
+                <text x={xPos} y={h - 5} fontSize={9} fontFamily="var(--font-mono)"
+                  fill="var(--text-faint)" textAnchor={anchor}>
                   {fmtTick(iso, frac)}
                 </text>
               </g>
