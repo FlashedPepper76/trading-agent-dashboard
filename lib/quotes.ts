@@ -1,74 +1,113 @@
-// Thin wrapper around Yahoo's free, unauthenticated chart endpoint. Used
-// for two things:
-//   - fetchRangeSeries: an arbitrary historical window at the finest
-//     interval Yahoo allows for that span (used for the compare page's
-//     total-market benchmark line).
-//   - fetchTodaySeries: today's intraday bars for a single symbol (used
-//     for the per-holding day-trend sparklines on the Positions page).
-// Both return the same plain { date, close } shape.
+// Thin wrapper around financial data endpoints for the compare page benchmark
+// and position sparklines. Uses stooq.com as the primary source for range
+// queries (more reliable from Vercel server IPs than Yahoo Finance, which
+// blocks Vercel's egress ranges) with Yahoo Finance as a fallback.
 
 export type QuotePoint = { date: string; close: number };
+
+// ---- stooq.com (primary for range queries) ---------------------------------
+// Free, no API key, reliable from Vercel server IPs.
+// Returns CSV: Date,Open,High,Low,Close,Volume (dates as YYYY-MM-DD).
+// Stooq uses a ".us" suffix for US-listed tickers (VTI → vti.us).
+
+function fmtStooqDate(epochSec: number): string {
+  const d = new Date(epochSec * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+async function fetchStooqRange(
+  symbol: string,
+  period1Sec: number,
+  period2Sec: number
+): Promise<QuotePoint[]> {
+  const d1 = fmtStooqDate(period1Sec - 86400); // one day buffer
+  const d2 = fmtStooqDate(period2Sec);
+  const ticker = `${symbol.toLowerCase()}.us`;
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(ticker)}&d1=${d1}&d2=${d2}&i=d`;
+
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; TradingDashboard/1.0)" },
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) throw new Error(`Stooq HTTP ${res.status}`);
+  const text = await res.text();
+
+  // Stooq returns "No data" in the body when a ticker isn't found
+  if (text.trim().startsWith("No data") || text.trim().length < 20) {
+    throw new Error(`Stooq: no data for ${symbol}`);
+  }
+
+  const lines = text.trim().split("\n");
+  const points: QuotePoint[] = [];
+  for (const line of lines.slice(1)) {
+    const cols = line.split(",");
+    if (cols.length < 5) continue;
+    const date = cols[0].trim();
+    const close = parseFloat(cols[4]);
+    if (!date || isNaN(close)) continue;
+    // Stooq dates are already YYYY-MM-DD
+    points.push({ date: `${date}T12:00:00Z`, close });
+  }
+  if (points.length < 2) throw new Error(`Stooq: too few points for ${symbol}`);
+  return points;
+}
+
+// ---- Yahoo Finance (fallback) ----------------------------------------------
+// Tries query1 then query2. Unreliable from Vercel IPs but worth attempting
+// as a fallback since stooq only covers equities/ETFs with a .us suffix.
 
 type YahooChartResult = {
   timestamp?: number[];
   indicators?: { quote?: { close?: (number | null)[] }[] };
 };
 
-// query1 sometimes requires a crumb cookie that Vercel's server IPs don't
-// have; query2 is usually more permissive. Try both before giving up so a
-// single host outage doesn't silently drop the benchmark line.
-const YAHOO_HOSTS = [
-  "query1.finance.yahoo.com",
-  "query2.finance.yahoo.com",
-];
+const YAHOO_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
 
-async function fetchYahooChart(
+async function fetchYahooRange(
   symbol: string,
-  query: string,
-  revalidateSeconds: number
+  period1Sec: number,
+  period2Sec: number,
+  interval: string
 ): Promise<QuotePoint[]> {
   let lastError: unknown;
   for (const host of YAHOO_HOSTS) {
-    const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?${query}`;
     try {
+      const url =
+        `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}` +
+        `?period1=${period1Sec}&period2=${period2Sec}&interval=${interval}&includePrePost=false`;
       const res = await fetch(url, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         },
-        next: { revalidate: revalidateSeconds },
+        next: { revalidate: 3600 },
       });
-      if (!res.ok) {
-        lastError = new Error(`HTTP ${res.status} from ${host}`);
-        continue;
-      }
+      if (!res.ok) { lastError = new Error(`Yahoo ${host} HTTP ${res.status}`); continue; }
       const data = await res.json();
       const result: YahooChartResult | undefined = data?.chart?.result?.[0];
       if (!result) continue;
-
       const timestamps = result.timestamp || [];
       const closes = result.indicators?.quote?.[0]?.close || [];
-
       const points: QuotePoint[] = [];
       for (let i = 0; i < timestamps.length; i++) {
-        const close = closes[i];
-        if (close == null) continue;
-        points.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+        const c = closes[i];
+        if (c == null) continue;
+        points.push({ date: new Date(timestamps[i] * 1000).toISOString(), close: c });
       }
-      if (points.length > 1) return points; // success — stop trying hosts
+      if (points.length > 1) return points;
     } catch (e) {
       lastError = e;
     }
   }
-  throw lastError ?? new Error(`Failed to load quote data for ${symbol}`);
+  throw lastError ?? new Error(`Yahoo: no data for ${symbol}`);
 }
 
-// Granularity is picked automatically based on the requested range, since
-// Yahoo only serves fine-grained intraday bars for recent history (5-minute
-// bars cover up to ~6 days, 30-minute up to ~55 days, hourly up to ~2
-// years). Using the finest interval the range allows means the line shows
-// real intraday movement instead of a flat day-to-day step.
+// ---- Interval picker -------------------------------------------------------
+
 function pickInterval(period1Sec: number, period2Sec: number): string {
   const days = (period2Sec - period1Sec) / 86400;
   if (days <= 6) return "5m";
@@ -77,23 +116,60 @@ function pickInterval(period1Sec: number, period2Sec: number): string {
   return "1d";
 }
 
+// ---- Public API ------------------------------------------------------------
+
+// Arbitrary historical window — used for the compare page's VTI benchmark.
+// Tries stooq first (more reliable from Vercel), Yahoo as fallback.
 export async function fetchRangeSeries(
   symbol: string,
   period1Sec: number,
   period2Sec: number
 ): Promise<QuotePoint[]> {
-  const interval = pickInterval(period1Sec, period2Sec);
-  return fetchYahooChart(
-    symbol,
-    `period1=${period1Sec}&period2=${period2Sec}&interval=${interval}&includePrePost=false`,
-    3600
-  );
+  try {
+    return await fetchStooqRange(symbol, period1Sec, period2Sec);
+  } catch (stooqErr) {
+    // Stooq failed — try Yahoo Finance
+    try {
+      const interval = pickInterval(period1Sec, period2Sec);
+      return await fetchYahooRange(symbol, period1Sec, period2Sec, interval);
+    } catch (yahooErr) {
+      // Both failed — rethrow the original stooq error with Yahoo context
+      throw new Error(
+        `All sources failed for ${symbol}: stooq(${stooqErr}), yahoo(${yahooErr})`
+      );
+    }
+  }
 }
 
-// Today's session at 5-minute bars (Yahoo's "range=1d" resolves the
-// trading-day boundary itself — pre-market it returns the prior session).
-// Short revalidate window since this is meant to track the day as it
-// happens, not just show its eventual shape.
+// Today's session at 5-minute bars — used for position sparklines.
+// Yahoo is the only source that has live intraday bars, so no stooq here.
 export async function fetchTodaySeries(symbol: string): Promise<QuotePoint[]> {
-  return fetchYahooChart(symbol, "range=1d&interval=5m&includePrePost=false", 300);
+  let lastError: unknown;
+  for (const host of YAHOO_HOSTS) {
+    try {
+      const url =
+        `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}` +
+        `?range=1d&interval=5m&includePrePost=false`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; TradingDashboard/1.0)" },
+        next: { revalidate: 300 },
+      });
+      if (!res.ok) { lastError = new Error(`HTTP ${res.status}`); continue; }
+      const data = await res.json();
+      const result: YahooChartResult | undefined = data?.chart?.result?.[0];
+      if (!result) continue;
+      const timestamps = result.timestamp || [];
+      const closes = result.indicators?.quote?.[0]?.close || [];
+      const points: QuotePoint[] = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        const c = closes[i];
+        if (c == null) continue;
+        points.push({ date: new Date(timestamps[i] * 1000).toISOString(), close: c });
+      }
+      if (points.length > 1) return points;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError ?? new Error(`No intraday data for ${symbol}`);
 }
