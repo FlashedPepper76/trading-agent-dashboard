@@ -157,3 +157,28 @@ export async function getAllSubscriptions(): Promise<PushSubscriptionRow[]> {
   if (!res.ok) throw new Error(`Failed to load subscriptions: ${res.status}`);
   return res.json();
 }
+
+// Benchmark (VTI) price data — written by the Python snapshot every minute
+// (Plutus only) via Alpaca's data API; read here by the compare page.
+// This avoids external API calls from Vercel which are blocked for stooq/Yahoo.
+export type BenchmarkPrice = { date: string; close: number };
+
+export async function getBenchmarkPrices(
+  symbol: string,
+  fromDate: string  // YYYY-MM-DD inclusive
+): Promise<BenchmarkPrice[]> {
+  const params = new URLSearchParams({
+    symbol: `eq.${symbol}`,
+    price_date: `gte.${fromDate}`,
+    select: "price_date,close",
+    order: "price_date.asc",
+  });
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/benchmark_prices?${params.toString()}`,
+    { headers: headers(), cache: "no-store" }
+  );
+  if (!res.ok) throw new Error(`Failed to load benchmark prices: ${res.status}`);
+  const rows: { price_date: string; close: number }[] = await res.json();
+  // Return in the same QuotePoint shape that compare-helpers expects
+  return rows.map((r) => ({ date: `${r.price_date}T12:00:00Z`, close: r.close }));
+}
