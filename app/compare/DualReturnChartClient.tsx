@@ -12,6 +12,8 @@ type ChartSeries = {
   dashed?: boolean;
 };
 
+type ChartMode = "alltime" | "daily";
+
 export function DualReturnChart({
   seriesByAgent,
   agentIds,
@@ -21,6 +23,8 @@ export function DualReturnChart({
   benchmarkLabel = "Total market (VTI)",
   benchmarkColor = "var(--accent-benchmark)",
   daySlots,
+  seriesByAgentDaily,
+  benchmarkSeriesDaily,
 }: {
   seriesByAgent: Record<string, PctSeriesPoint[]>;
   agentIds: string[];
@@ -29,24 +33,29 @@ export function DualReturnChart({
   benchmarkSeries?: PctSeriesPoint[];
   benchmarkLabel?: string;
   benchmarkColor?: string;
-  // When provided, the x-axis shows one centered date label per calendar day
-  // (day-slot mode) rather than using the nearest-point fallback.
   daySlots?: string[];
+  seriesByAgentDaily?: Record<string, PctSeriesPoint[]>;
+  benchmarkSeriesDaily?: PctSeriesPoint[];
 }) {
   const [hoverFrac, setHoverFrac] = useState<number | null>(null);
+  const [mode, setMode] = useState<ChartMode>("alltime");
+
+  // Pick the active series set based on mode
+  const activeSeriesByAgent  = mode === "daily" && seriesByAgentDaily  ? seriesByAgentDaily  : seriesByAgent;
+  const activeBenchmarkSeries = mode === "daily" && benchmarkSeriesDaily ? benchmarkSeriesDaily : benchmarkSeries;
 
   const allSeries: ChartSeries[] = agentIds.map((id) => ({
     id,
     label: labels[id] ?? id,
     color: colors[id],
-    points: seriesByAgent[id] || [],
+    points: activeSeriesByAgent[id] || [],
   }));
-  if (benchmarkSeries && benchmarkSeries.length >= 2) {
+  if (activeBenchmarkSeries && activeBenchmarkSeries.length >= 2) {
     allSeries.push({
       id: "__benchmark",
       label: benchmarkLabel,
       color: benchmarkColor,
-      points: benchmarkSeries,
+      points: activeBenchmarkSeries,
       dashed: true,
     });
   }
@@ -114,7 +123,37 @@ export function DualReturnChart({
     return best;
   }
 
+  const MODE_TABS: { key: ChartMode; label: string; desc: string }[] = [
+    { key: "alltime", label: "Since first log",  desc: "Cumulative % from each agent\'s very first run" },
+    { key: "daily",   label: "Since day open",   desc: "% return from each day\'s opening — resets each session" },
+  ];
+
   return (
+    <div>
+      {/* Mode tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {MODE_TABS.map(({ key, label, desc }) => (
+          <button
+            key={key}
+            onClick={() => { setMode(key); setHoverFrac(null); }}
+            title={desc}
+            style={{
+              fontSize: 11,
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.04em",
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: `1px solid ${mode === key ? "var(--accent-focus)" : "var(--border-hairline)"}`,
+              background: mode === key ? "var(--accent-focus)" : "transparent",
+              color: mode === key ? "var(--bg-base)" : "var(--text-muted)",
+              cursor: "pointer",
+              transition: "all 0.15s var(--ease)",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     <div style={{ position: "relative" }}>
       <svg
         viewBox={`0 0 ${w} ${h}`}
@@ -230,8 +269,8 @@ export function DualReturnChart({
 
           // Fallback: use nearest-point approach when no daySlots provided.
           const refPts =
-            benchmarkSeries && benchmarkSeries.length >= 2
-              ? benchmarkSeries
+            activeBenchmarkSeries && activeBenchmarkSeries.length >= 2
+              ? activeBenchmarkSeries
               : linesBySeries.reduce(
                   (best, s) => (s.points.length > best.points.length ? s : best),
                   linesBySeries[0]
@@ -330,6 +369,7 @@ export function DualReturnChart({
           })}
         </div>
       ) : null}
+    </div>
     </div>
   );
 }
