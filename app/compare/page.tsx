@@ -112,25 +112,17 @@ export default async function ComparePage() {
 
   const agentIds = agents.map((a) => a.id);
 
-  // Agents need a minimum run history before their line is meaningful on
-  // the return chart — a 20-run line spreads 20 points across the same
-  // visual width as a 200-run line, looks flat, and skews the y-axis.
-  // 50 runs ≈ 1–2 days of 15-min polling; any agent below this threshold
-  // is shown in the stats cards but excluded from the chart until it
-  // accumulates enough history. No code change needed when it crosses the
-  // threshold — the chart just starts including it automatically.
-  const MIN_CHART_RUNS = 50;
-  const chartAgentIds = agentIds.filter((id) => (runsByAgent[id]?.length ?? 0) >= MIN_CHART_RUNS);
-
-  const seriesByAgent = buildPerAgentPctSeries(
-    Object.fromEntries(chartAgentIds.map((id) => [id, runsByAgent[id]]))
-  );
+  const seriesByAgent = buildPerAgentPctSeries(runsByAgent);
   const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
   const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
 
-  // Date range uses only chart-eligible agents so a brand-new agent
-  // doesn't anchor VTI to today instead of when the established agents started.
-  const allRunTimes = chartAgentIds
+  // Date range for VTI benchmark — use only agents with meaningful history
+  // so a brand-new agent doesn't anchor VTI to today instead of when the
+  // established agents started. Agents with < 50 runs still appear in the
+  // chart; this only affects where the VTI line begins.
+  const MIN_BENCHMARK_RUNS = 50;
+  const anchorAgentIds = agentIds.filter((id) => (runsByAgent[id]?.length ?? 0) >= MIN_BENCHMARK_RUNS);
+  const allRunTimes = (anchorAgentIds.length ? anchorAgentIds : agentIds)
     .flatMap((id) => (runsByAgent[id] ?? []).map((r) => new Date(r.run_at).getTime()))
     .filter((t) => Number.isFinite(t));
   const rangeStartMs = allRunTimes.length
@@ -191,7 +183,7 @@ export default async function ComparePage() {
         </div>
         <DualReturnChart
           seriesByAgent={seriesByAgent}
-          agentIds={chartAgentIds}
+          agentIds={agentIds}
           colors={colors}
           labels={labels}
           benchmarkSeries={benchmarkSeries}
@@ -206,4 +198,5 @@ export default async function ComparePage() {
     </div>
   );
 }
+
 
