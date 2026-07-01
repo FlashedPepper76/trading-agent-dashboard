@@ -47,9 +47,6 @@ const STATIC_AGENTS: Record<string, AgentMeta> = {
     description: "Runs every 15 min. Uses xAI Grok with live web search to trade on fresh earnings, FDA decisions, and other discrete market catalysts.",
     accent: "var(--accent-hermes)",
     accentDim: "var(--accent-hermes-dim)",
-    // Raw Alpaca account is $10k; multiply by 10 so equity reads as ~$100k
-    // for apples-to-apples visual comparison with Plutus and Helios.
-    displayScale: 10,
   },
 };
 
