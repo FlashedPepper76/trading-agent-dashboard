@@ -61,7 +61,7 @@ export function DualReturnChart({
   const padLeft = 44;
   const padRight = 8;
   const padTop = 12;
-  const padBottom = 26;
+  const padBottom = 32;  // slightly taller to fit date labels + tick marks
   const plotW = w - padLeft - padRight;
   const plotH = h - padTop - padBottom;
 
@@ -180,12 +180,73 @@ export function DualReturnChart({
             );
           })}
 
-        <text x={padLeft} y={h - 6} fontSize={10} fontFamily="var(--font-mono)" fill="var(--text-faint)" textAnchor="start">
-          oldest
-        </text>
-        <text x={w - padRight} y={h - 6} fontSize={10} fontFamily="var(--font-mono)" fill="var(--text-faint)" textAnchor="end">
-          latest
-        </text>
+        {/* X-axis date ticks: sample 5 evenly-spaced positions, resolve each
+            to a calendar date via the benchmark series (calendar-time-accurate)
+            or the longest agent series as fallback. */}
+        {(() => {
+          // Prefer VTI benchmark since its xFrac is already calendar-time;
+          // otherwise use whichever agent series has the most points.
+          const refPts =
+            benchmarkSeries && benchmarkSeries.length >= 2
+              ? benchmarkSeries
+              : linesBySeries.reduce(
+                  (best, s) => (s.points.length > best.points.length ? s : best),
+                  linesBySeries[0]
+                ).points;
+
+          if (!refPts || refPts.length < 2) return null;
+
+          // Detect if the data spans multiple years so we can add a year suffix
+          const firstYear = new Date(refPts[0].runAt).getFullYear();
+          const lastYear  = new Date(refPts[refPts.length - 1].runAt).getFullYear();
+          const showYear  = firstYear !== lastYear;
+
+          function nearestDate(frac: number): string {
+            let best = refPts[0];
+            let bestDist = Math.abs(best.xFrac - frac);
+            for (const p of refPts) {
+              const d = Math.abs(p.xFrac - frac);
+              if (d < bestDist) { best = p; bestDist = d; }
+            }
+            return best.runAt.slice(0, 10);
+          }
+
+          function fmtTick(iso: string, frac: number): string {
+            const d = new Date(iso + "T12:00:00Z");
+            const base = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            if (showYear && (frac === 0 || d.getFullYear() !== firstYear)) {
+              return base + " '" + String(d.getFullYear()).slice(2);
+            }
+            return base;
+          }
+
+          const tickFracs = [0, 0.25, 0.5, 0.75, 1];
+          return tickFracs.map((frac) => {
+            const iso  = nearestDate(frac);
+            const xPos = x(frac);
+            const anchor = frac === 0 ? "start" : frac === 1 ? "end" : "middle";
+            return (
+              <g key={frac}>
+                <line
+                  x1={xPos} x2={xPos}
+                  y1={padTop + plotH} y2={padTop + plotH + 5}
+                  stroke="var(--border-hairline)"
+                  strokeWidth={1}
+                />
+                <text
+                  x={xPos}
+                  y={h - 5}
+                  fontSize={9}
+                  fontFamily="var(--font-mono)"
+                  fill="var(--text-faint)"
+                  textAnchor={anchor}
+                >
+                  {fmtTick(iso, frac)}
+                </text>
+              </g>
+            );
+          });
+        })()}
 
         <rect
           x={padLeft}
