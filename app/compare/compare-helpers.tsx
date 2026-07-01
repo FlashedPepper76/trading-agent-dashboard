@@ -141,30 +141,37 @@ export function buildAlignedReturnSeries(runsByAgent: Record<string, Run[]>): Al
   });
 }
 
-// xFrac is each point's horizontal position on the chart, 0..1. For
-// per-agent series it's just the point's index fraction (see below). For
-// the benchmark series it's a calendar-time fraction instead, so the chart
-// renderer can place every series on a shared x axis without needing to
-// know which kind of series it's looking at.
+// xFrac is each point's horizontal position on the chart, 0..1. All series
+// (agents and benchmark) now use the same calendar-time reference so that:
+//  - A newer agent like Hermes (started today) correctly appears starting
+//    partway across the chart rather than spanning the full width
+//  - Tooltip dates are consistent across series at the same x position
+//  - VTI aligns with the agent lines instead of being pinned to its own 0–1
 export type PctSeriesPoint = { runAt: string; pct: number; xFrac: number };
 
-// Same algorithm as the Scriptable widget's toPctSeries/drawComparisonChart:
-// each agent's own equity history (oldest -> newest), % change from that
-// agent's own first equity reading. No calendar-date alignment between
-// agents — each line is plotted across the full chart width on its own
-// run index, exactly like the widget does, since Plutus and Helios run on
-// very different schedules and the widget never tried to reconcile that.
-export function buildPerAgentPctSeries(runsByAgent: Record<string, Run[]>): Record<string, PctSeriesPoint[]> {
+// Calendar-time % return per agent. Each agent's line starts at the run_at
+// timestamp of its first equity reading and ends at its last, both mapped
+// onto the shared [rangeStartMs, rangeEndMs] time axis.
+//
+// Using calendar time (instead of the previous run-index fraction) means:
+//  - Agents that started later appear starting mid-chart (correct)
+//  - The x-axis dates shown from VTI or Plutus match what Hermes's
+//    tooltip would report at the same horizontal position
+export function buildPerAgentPctSeries(
+  runsByAgent: Record<string, Run[]>,
+  rangeStartMs: number,
+  rangeEndMs: number
+): Record<string, PctSeriesPoint[]> {
+  const tSpan = rangeEndMs - rangeStartMs || 1;
   const result: Record<string, PctSeriesPoint[]> = {};
   for (const [agentId, runs] of Object.entries(runsByAgent)) {
     const chronological = [...runs].reverse().filter((r) => r.account_equity != null);
     const base = chronological[0]?.account_equity ?? null;
-    const n = chronological.length;
     result[agentId] = base
-      ? chronological.map((r, i) => ({
+      ? chronological.map((r) => ({
           runAt: r.run_at,
           pct: ((r.account_equity! - base) / base) * 100,
-          xFrac: n > 1 ? i / (n - 1) : 0.5,
+          xFrac: Math.max(0, Math.min(1, (new Date(r.run_at).getTime() - rangeStartMs) / tSpan)),
         }))
       : [];
   }
@@ -172,17 +179,13 @@ export function buildPerAgentPctSeries(runsByAgent: Record<string, Run[]>): Reco
 }
 
 // Turns raw benchmark closes (e.g. VTI) into the same % return shape as the
-// agent series. Two fixes vs the original:
+// agent series. Uses the same external [rangeStartMs, rangeEndMs] time axis
+// as buildPerAgentPctSeries so all series share one x-axis.
 //
-//  1. Base is anchored to the first VTI close at/after rangeStartMs (the
-//     agents' actual start date), not sorted[0] which was fetched a day
-//     earlier as a buffer and caused VTI to start at a non-zero %.
-//
-//  2. xFrac is normalized within the actual fetched data's own date range
-//     so the line always spans the full chart width. The original used
-//     calendar time vs rangeEndMs = Date.now(), which left the last VTI
-//     point (yesterday's close) short of xFrac=1. Calendar proportions
-//     between points are preserved; only the endpoints are pinned to 0/1.
+// Base is anchored to the first VTI close at/after rangeStartMs (the agents'
+// actual start date) so the % return is relative to when the agents began.
+// VTI may start partway across the chart if markets were closed on the first
+// agent run date (e.g. the agents started on a Sunday).
 export function buildBenchmarkPctSeries(
   points: { date: string; close: number }[],
   rangeStartMs: number,
@@ -196,20 +199,16 @@ export function buildBenchmarkPctSeries(
   const basePoint = sorted.find((p) => p.date.slice(0, 10) >= rangeStartDate) ?? sorted[0];
   const base = basePoint.close;
 
-  // Normalize xFrac so the line always fills 0→1 regardless of trading
-  // holidays near the range boundaries.
-  const n = sorted.length;
-  const tFirst = new Date(sorted[0].date).getTime();
-  const tLast  = new Date(sorted[n - 1].date).getTime();
-  const tSpan  = tLast - tFirst || 1;
+  const tSpan = rangeEndMs - rangeStartMs || 1;
 
-  return sorted.map((p, i) => {
+  return sorted.map((p) => {
     const t = new Date(p.date).getTime();
-    const xFrac = i === 0 ? 0 : i === n - 1 ? 1 : (t - tFirst) / tSpan;
     return {
       runAt: p.date,
       pct: ((p.close - base) / base) * 100,
-      xFrac,
+      // Clamp to [0, 1] — VTI points before rangeStart (weekend buffer)
+      // are dropped to 0; points at/after rangeEnd clamp to 1.
+      xFrac: Math.max(0, Math.min(1, (t - rangeStartMs) / tSpan)),
     };
   });
 }
