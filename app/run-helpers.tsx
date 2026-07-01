@@ -123,7 +123,7 @@ export function StatBlock({ label, value, color }: { label: string; value: strin
   );
 }
 
-export function SummaryBar({ runs, accountState }: { runs: Run[]; accountState?: AccountState | null }) {
+export function SummaryBar({ runs, accountState, displayScale = 1 }: { runs: Run[]; accountState?: AccountState | null; displayScale?: number }) {
   if (runs.length === 0) return null;
   const latest = runs[0];
   const oldest = runs[runs.length - 1];
@@ -131,10 +131,15 @@ export function SummaryBar({ runs, accountState }: { runs: Run[]; accountState?:
   // independent of the slower Gemini-driven decision cycle) for the
   // "right now" numbers. Fall back to the latest decision run if the
   // snapshot job hasn't populated yet.
-  const equity = accountState?.equity ?? latest.account_equity ?? null;
-  const cash = accountState?.cash ?? latest.account_cash ?? null;
+  const rawEquity = accountState?.equity ?? latest.account_equity ?? null;
+  const rawCash = accountState?.cash ?? latest.account_cash ?? null;
   const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
-  const baseline = oldest.account_equity ?? null;
+  const rawBaseline = oldest.account_equity ?? null;
+  // Apply displayScale so agents with a smaller starting balance (e.g.
+  // Hermes at $10k) display on the same visual scale as the $100k agents.
+  const equity = rawEquity !== null ? rawEquity * displayScale : null;
+  const cash = rawCash !== null ? rawCash * displayScale : null;
+  const baseline = rawBaseline !== null ? rawBaseline * displayScale : null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
   const today = runs.filter((r) => isSameEtDay(r.run_at, latest.run_at));

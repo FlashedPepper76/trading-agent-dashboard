@@ -17,6 +17,10 @@ export type AgentMeta = {
   accent: string; // CSS var reference (static agents) or a literal hex (dynamic agents)
   accentDim: string;
   dynamic?: boolean; // true for agents loaded from Supabase rather than hardcoded below
+  // Multiply raw Alpaca equity/cash values by this before display — used for
+  // Hermes whose account started at $10k rather than $100k, so the three
+  // agents appear on the same visual scale. Return percentages are unaffected.
+  displayScale?: number;
 };
 
 const STATIC_AGENTS: Record<string, AgentMeta> = {
@@ -36,12 +40,23 @@ const STATIC_AGENTS: Record<string, AgentMeta> = {
     accent: "var(--accent-helios)",
     accentDim: "var(--accent-helios-dim)",
   },
+  hermes: {
+    id: "hermes",
+    label: "Hermes",
+    tagline: "news-catalyst event trader",
+    description: "Runs every 15 min. Uses xAI Grok with live web search to trade on fresh earnings, FDA decisions, and other discrete market catalysts.",
+    accent: "var(--accent-hermes)",
+    accentDim: "var(--accent-hermes-dim)",
+    // Raw Alpaca account is $10k; multiply by 10 so equity reads as ~$100k
+    // for apples-to-apples visual comparison with Plutus and Helios.
+    displayScale: 10,
+  },
 };
 
 // Kept exactly as before for any code that only ever meant "the two
 // hardcoded agents" (e.g. the icon map in nav.tsx).
 export const AGENTS = STATIC_AGENTS;
-export const AGENT_IDS: string[] = ["plutus", "helios"];
+export const AGENT_IDS: string[] = ["plutus", "helios", "hermes"];
 
 export function isAgentId(value: string): boolean {
   return value in STATIC_AGENTS;

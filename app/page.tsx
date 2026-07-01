@@ -113,9 +113,12 @@ function AgentCard({
   const chronological = [...runs].reverse();
   const latest = runs[0];
   const oldest = runs[runs.length - 1];
-  const equity = accountState?.equity ?? latest.account_equity ?? null;
+  const scale = agent.displayScale ?? 1;
+  const rawEquity = accountState?.equity ?? latest.account_equity ?? null;
+  const equity = rawEquity !== null ? rawEquity * scale : null;
   const openPositions = accountState?.num_open_positions ?? latest.num_open_positions ?? 0;
-  const baseline = oldest.account_equity ?? null;
+  const rawBaseline = oldest.account_equity ?? null;
+  const baseline = rawBaseline !== null ? rawBaseline * scale : null;
   const pnl = equity !== null && baseline !== null ? equity - baseline : null;
   const pnlPct = pnl !== null && baseline ? (pnl / baseline) * 100 : null;
   const pnlColor = pnl === null || pnl === 0 ? "var(--text-primary)" : pnl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";

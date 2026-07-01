@@ -62,7 +62,7 @@ export default async function AgentLogPage({
         </div>
       ) : (
         <>
-          <SummaryBar runs={allRuns} accountState={accountState} />
+          <SummaryBar runs={allRuns} accountState={accountState} displayScale={agent.displayScale ?? 1} />
 
           <div
             style={{

@@ -16,6 +16,8 @@
   --accent-focus: #7dd3fc;
   --accent-helios: #a78bfa;
   --accent-helios-dim: #a78bfa1a;
+  --accent-hermes: #f59e0b;
+  --accent-hermes-dim: #f59e0b1a;
   --accent-benchmark: #94a3b8;
   --accent-benchmark-dim: #94a3b81a;
 
@@ -58,7 +60,8 @@ body::before {
   pointer-events: none;
   background:
     radial-gradient(560px circle at 12% -6%, var(--accent-buy-dim), transparent 60%),
-    radial-gradient(560px circle at 88% 8%, var(--accent-helios-dim), transparent 60%);
+    radial-gradient(560px circle at 88% 8%, var(--accent-helios-dim), transparent 60%),
+    radial-gradient(400px circle at 50% 95%, var(--accent-hermes-dim), transparent 60%);
   opacity: 0.7;
 }
 

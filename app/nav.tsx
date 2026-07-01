@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, ArrowLeftRight, Zap, ShieldCheck, Bot, type LucideIcon } from "lucide-react";
+import { LayoutGrid, ArrowLeftRight, Zap, ShieldCheck, Bot, Coins, type LucideIcon } from "lucide-react";
 import NotifyBell from "./notify-bell";
 import type { AgentMeta } from "../lib/agents";
 
@@ -11,7 +11,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon; accent?: string;
 // Known hardcoded agents get a distinct icon; anything dynamic (or any
 // future hardcoded agent that forgets to add one here) falls back to a
 // generic bot icon rather than breaking.
-const AGENT_ICONS: Record<string, LucideIcon> = { plutus: Zap, helios: ShieldCheck };
+const AGENT_ICONS: Record<string, LucideIcon> = { plutus: Zap, helios: ShieldCheck, hermes: Coins };
 
 function buildItems(agents: AgentMeta[]): NavItem[] {
   return [
