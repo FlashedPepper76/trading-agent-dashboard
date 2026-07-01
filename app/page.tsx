@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getRuns, getAccountState, type Run, type AccountState } from "../lib/supabase";
 import { getAllAgents, type AgentMeta } from "../lib/agents";
 import { fmtMoney, fmtTime, isSameEtDay, tradeCount } from "./run-helpers";
+import EquityRefresher from "./equity-refresher";
 
 function Sparkline({ values, color, staggerIndex = 0 }: { values: number[]; color: string; staggerIndex?: number }) {
   if (values.length < 2) {
@@ -219,26 +220,29 @@ export default async function OverviewPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 540, margin: 0 }}>
           Autonomous agents, separate philosophies, same infrastructure — separate paper brokerage accounts so
           none of their trades affect each other. Tap any card for its full log and reasoning.
         </p>
-        <Link
-          href="/agents/new"
-          className="btn"
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--text-primary)",
-            borderRadius: 999,
-            padding: "7px 14px",
-            whiteSpace: "nowrap",
-            textDecoration: "none",
-          }}
-        >
-          + Add agent
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <EquityRefresher />
+          <Link
+            href="/agents/new"
+            className="btn"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              borderRadius: 999,
+              padding: "7px 14px",
+              whiteSpace: "nowrap",
+              textDecoration: "none",
+            }}
+          >
+            + Add agent
+          </Link>
+        </div>
       </div>
 
       <div

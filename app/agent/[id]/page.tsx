@@ -3,6 +3,7 @@ import { getRuns, getPositions, getAccountState, type Run, type Position, type A
 import { getAgentMeta } from "../../../lib/agents";
 import { runHasTrade, SummaryBar, RunEntry } from "../../run-helpers";
 import AgentSubNav from "../../agent-sub-nav";
+import ManualRunPanel from "../../manual-run-panel";
 
 export default async function AgentLogPage({
   params,
@@ -51,6 +52,8 @@ export default async function AgentLogPage({
         </div>
         <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{agent.description}</div>
       </div>
+
+      <ManualRunPanel agentId={id} accent={agent.accent} />
 
       <AgentSubNav id={id} accent={agent.accent} active="log" />
 
