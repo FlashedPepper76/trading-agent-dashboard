@@ -129,7 +129,12 @@ export default async function ComparePage() {
   const rangeStartDate = new Date(rangeStartMs).toISOString().slice(0, 10);
   let rawVTI: { date: string; close: number }[] = [];
   try {
-    rawVTI = await getBenchmarkPrices("VTI", rangeStartDate);
+    // Fetch 14 days of VTI before agent-launch so the benchmark line shows
+  // meaningful shape rather than just 3 points over the agents' short history.
+  const vtiFromDate = new Date(rangeStartMs - 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  rawVTI = await getBenchmarkPrices("VTI", vtiFromDate);
   } catch {
     // Supabase failed or table empty — try Yahoo Finance as one-time fallback
     try {
