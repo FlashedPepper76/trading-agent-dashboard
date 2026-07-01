@@ -171,10 +171,18 @@ export function buildPerAgentPctSeries(runsByAgent: Record<string, Run[]>): Reco
   return result;
 }
 
-// Turns raw benchmark closes (e.g. SPY) into the same % return shape as the
-// agent series, but positioned by actual calendar time (rangeStartMs ->
-// rangeEndMs) rather than by index, since the benchmark has one point per
-// trading day while agents have wildly different run cadences.
+// Turns raw benchmark closes (e.g. VTI) into the same % return shape as the
+// agent series. Two fixes vs the original:
+//
+//  1. Base is anchored to the first VTI close at/after rangeStartMs (the
+//     agents' actual start date), not sorted[0] which was fetched a day
+//     earlier as a buffer and caused VTI to start at a non-zero %.
+//
+//  2. xFrac is normalized within the actual fetched data's own date range
+//     so the line always spans the full chart width. The original used
+//     calendar time vs rangeEndMs = Date.now(), which left the last VTI
+//     point (yesterday's close) short of xFrac=1. Calendar proportions
+//     between points are preserved; only the endpoints are pinned to 0/1.
 export function buildBenchmarkPctSeries(
   points: { date: string; close: number }[],
   rangeStartMs: number,
@@ -182,11 +190,22 @@ export function buildBenchmarkPctSeries(
 ): PctSeriesPoint[] {
   if (points.length === 0) return [];
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-  const base = sorted[0].close;
-  const span = rangeEndMs - rangeStartMs || 1;
-  return sorted.map((p) => {
+
+  // Anchor base to the trading day at/after the agents' first run.
+  const rangeStartDate = new Date(rangeStartMs).toISOString().slice(0, 10);
+  const basePoint = sorted.find((p) => p.date.slice(0, 10) >= rangeStartDate) ?? sorted[0];
+  const base = basePoint.close;
+
+  // Normalize xFrac so the line always fills 0→1 regardless of trading
+  // holidays near the range boundaries.
+  const n = sorted.length;
+  const tFirst = new Date(sorted[0].date).getTime();
+  const tLast  = new Date(sorted[n - 1].date).getTime();
+  const tSpan  = tLast - tFirst || 1;
+
+  return sorted.map((p, i) => {
     const t = new Date(p.date).getTime();
-    const xFrac = Math.max(0, Math.min(1, (t - rangeStartMs) / span));
+    const xFrac = i === 0 ? 0 : i === n - 1 ? 1 : (t - tFirst) / tSpan;
     return {
       runAt: p.date,
       pct: ((p.close - base) / base) * 100,
@@ -194,6 +213,7 @@ export function buildBenchmarkPctSeries(
     };
   });
 }
+
 
 export function fmtPct(v: number | null) {
   if (v == null) return "—";
