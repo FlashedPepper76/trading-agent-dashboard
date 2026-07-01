@@ -228,6 +228,83 @@ export function buildBenchmarkPctSeries(
   return result;
 }
 
+// ── Daily-reset series builders ──────────────────────────────────────────────
+// These produce the same xFrac layout as the all-time versions but the %
+// return base resets to each day's first data point instead of the agent's
+// all-time first reading. Used by the "Since day open" tab on the compare chart.
+
+export function buildPerAgentPctSeriesDaily(
+  runsByAgent: Record<string, Run[]>,
+  daySlotIndex: Record<string, number>,
+  daySlotCount: number
+): Record<string, PctSeriesPoint[]> {
+  const result: Record<string, PctSeriesPoint[]> = {};
+
+  for (const [agentId, runs] of Object.entries(runsByAgent)) {
+    const chronological = [...runs].reverse().filter((r) => r.account_equity != null);
+
+    const byDate = new Map<string, typeof chronological>();
+    for (const r of chronological) {
+      const d = r.run_at.slice(0, 10);
+      if (!byDate.has(d)) byDate.set(d, []);
+      byDate.get(d)!.push(r);
+    }
+
+    const points: PctSeriesPoint[] = [];
+    for (const [dateStr, dateRuns] of byDate) {
+      const slotIdx = daySlotIndex[dateStr];
+      if (slotIdx === undefined) continue;
+      const dayBase = dateRuns[0].account_equity!;
+      const n = dateRuns.length;
+      dateRuns.forEach((r, i) => {
+        const inSlotFrac = n > 1 ? i / (n - 1) : 0.5;
+        points.push({
+          runAt: r.run_at,
+          pct: ((r.account_equity! - dayBase) / dayBase) * 100,
+          xFrac: (slotIdx + inSlotFrac) / daySlotCount,
+        });
+      });
+    }
+
+    result[agentId] = points;
+  }
+  return result;
+}
+
+export function buildBenchmarkPctSeriesDaily(
+  points: { date: string; close: number }[],
+  daySlotIndex: Record<string, number>,
+  daySlotCount: number
+): PctSeriesPoint[] {
+  if (points.length === 0) return [];
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+
+  const byDate = new Map<string, typeof sorted>();
+  for (const p of sorted) {
+    const d = p.date.slice(0, 10);
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(p);
+  }
+
+  const result: PctSeriesPoint[] = [];
+  for (const [dateStr, dayPoints] of byDate) {
+    const slotIdx = daySlotIndex[dateStr];
+    if (slotIdx === undefined) continue;
+    const dayBase = dayPoints[0].close;
+    const n = dayPoints.length;
+    dayPoints.forEach((p, i) => {
+      const inSlotFrac = n > 1 ? i / (n - 1) : 0.5;
+      result.push({
+        runAt: p.date,
+        pct: ((p.close - dayBase) / dayBase) * 100,
+        xFrac: (slotIdx + inSlotFrac) / daySlotCount,
+      });
+    });
+  }
+
+  return result;
+}
+
 export function fmtPct(v: number | null) {
   if (v == null) return "—";
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
