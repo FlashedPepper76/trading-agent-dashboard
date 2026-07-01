@@ -31,6 +31,10 @@ async function fetchStooqRange(
   const res = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; TradingDashboard/1.0)" },
     next: { revalidate: 3600 },
+    // 5-second hard timeout — stooq is unreachable from some Vercel egress IPs
+    // and without this the serverless function silently hangs until execution
+    // limit, swallowing the benchmark series entirely.
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) throw new Error(`Stooq HTTP ${res.status}`);
   const text = await res.text();
@@ -106,20 +110,13 @@ async function fetchYahooRange(
   throw lastError ?? new Error(`Yahoo: no data for ${symbol}`);
 }
 
-// ---- Interval picker -------------------------------------------------------
-
-function pickInterval(period1Sec: number, period2Sec: number): string {
-  const days = (period2Sec - period1Sec) / 86400;
-  if (days <= 6) return "5m";
-  if (days <= 55) return "30m";
-  if (days <= 700) return "60m";
-  return "1d";
-}
-
 // ---- Public API ------------------------------------------------------------
 
 // Arbitrary historical window — used for the compare page's VTI benchmark.
-// Tries stooq first (more reliable from Vercel), Yahoo as fallback.
+// Tries stooq first (5-second hard timeout so it fails fast if unreachable),
+// Yahoo as fallback. Always requests daily bars — pickInterval() was returning
+// "5m" for short ranges (< 6 days), which Yahoo blocks from Vercel IPs and is
+// wrong for a daily benchmark comparison chart.
 export async function fetchRangeSeries(
   symbol: string,
   period1Sec: number,
@@ -128,10 +125,11 @@ export async function fetchRangeSeries(
   try {
     return await fetchStooqRange(symbol, period1Sec, period2Sec);
   } catch (stooqErr) {
-    // Stooq failed — try Yahoo Finance
+    // Stooq failed (timeout or blocked) — try Yahoo Finance with daily bars.
+    // We always use "1d" here; intraday intervals are wrong for a benchmark
+    // comparison and frequently rate-limited on Vercel IPs.
     try {
-      const interval = pickInterval(period1Sec, period2Sec);
-      return await fetchYahooRange(symbol, period1Sec, period2Sec, interval);
+      return await fetchYahooRange(symbol, period1Sec, period2Sec, "1d");
     } catch (yahooErr) {
       // Both failed — rethrow the original stooq error with Yahoo context
       throw new Error(
