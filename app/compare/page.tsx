@@ -112,14 +112,10 @@ export default async function ComparePage() {
 
   const agentIds = agents.map((a) => a.id);
 
-  const seriesByAgent = buildPerAgentPctSeries(runsByAgent);
-  const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
-  const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
-
   // Date range for VTI benchmark — use only agents with meaningful history
   // so a brand-new agent doesn't anchor VTI to today instead of when the
   // established agents started. Agents with < 50 runs still appear in the
-  // chart; this only affects where the VTI line begins.
+  // chart; this only affects where the shared time axis begins.
   const MIN_BENCHMARK_RUNS = 50;
   const anchorAgentIds = agentIds.filter((id) => (runsByAgent[id]?.length ?? 0) >= MIN_BENCHMARK_RUNS);
   const allRunTimes = (anchorAgentIds.length ? anchorAgentIds : agentIds)
@@ -129,6 +125,15 @@ export default async function ComparePage() {
     ? Math.min(...allRunTimes)
     : Date.now() - 30 * 24 * 60 * 60 * 1000;
   const rangeEndMs = Date.now();
+
+  // All series (agents + VTI) now use the same [rangeStartMs, rangeEndMs]
+  // calendar-time window for their xFrac. This means:
+  //  - A newer agent like Hermes shows its line starting partway across
+  //    the chart rather than spanning the full width (run-index mode)
+  //  - Tooltip dates are consistent across all series at the same x position
+  const seriesByAgent = buildPerAgentPctSeries(runsByAgent, rangeStartMs, rangeEndMs);
+  const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
+  const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
 
   let benchmarkSeries: PctSeriesPoint[] = [];
   try {
@@ -149,10 +154,9 @@ export default async function ComparePage() {
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Head-to-head — % return since each agent&apos;s first logged run, same chart as the home-screen widget
-        (each agent plotted across its own run history, oldest to latest), with the total U.S. stock market
-        (VTI) over the same stretch of calendar time as a reference line — so a dip is easier to tell apart
-        from an agent just making bad calls.
+        Head-to-head — % return since each agent&apos;s first logged run, plotted on a shared calendar
+        timeline so newer agents like Hermes appear starting mid-chart rather than spanning the full
+        width. Total U.S. stock market (VTI) shown as a reference line over the same period.
       </p>
 
       <div
@@ -198,5 +202,4 @@ export default async function ComparePage() {
     </div>
   );
 }
-
 
