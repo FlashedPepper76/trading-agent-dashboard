@@ -14,33 +14,54 @@ type YahooChartResult = {
   indicators?: { quote?: { close?: (number | null)[] }[] };
 };
 
+// query1 sometimes requires a crumb cookie that Vercel's server IPs don't
+// have; query2 is usually more permissive. Try both before giving up so a
+// single host outage doesn't silently drop the benchmark line.
+const YAHOO_HOSTS = [
+  "query1.finance.yahoo.com",
+  "query2.finance.yahoo.com",
+];
+
 async function fetchYahooChart(
   symbol: string,
   query: string,
   revalidateSeconds: number
 ): Promise<QuotePoint[]> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${query}`;
+  let lastError: unknown;
+  for (const host of YAHOO_HOSTS) {
+    const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?${query}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
+        next: { revalidate: revalidateSeconds },
+      });
+      if (!res.ok) {
+        lastError = new Error(`HTTP ${res.status} from ${host}`);
+        continue;
+      }
+      const data = await res.json();
+      const result: YahooChartResult | undefined = data?.chart?.result?.[0];
+      if (!result) continue;
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; ArgusDashboard/1.0)" },
-    next: { revalidate: revalidateSeconds },
-  });
-  if (!res.ok) throw new Error(`Failed to load quote data for ${symbol}: ${res.status}`);
+      const timestamps = result.timestamp || [];
+      const closes = result.indicators?.quote?.[0]?.close || [];
 
-  const data = await res.json();
-  const result: YahooChartResult | undefined = data?.chart?.result?.[0];
-  if (!result) return [];
-
-  const timestamps = result.timestamp || [];
-  const closes = result.indicators?.quote?.[0]?.close || [];
-
-  const points: QuotePoint[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    const close = closes[i];
-    if (close == null) continue;
-    points.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+      const points: QuotePoint[] = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        const close = closes[i];
+        if (close == null) continue;
+        points.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+      }
+      if (points.length > 1) return points; // success — stop trying hosts
+    } catch (e) {
+      lastError = e;
+    }
   }
-  return points;
+  throw lastError ?? new Error(`Failed to load quote data for ${symbol}`);
 }
 
 // Granularity is picked automatically based on the requested range, since
@@ -62,7 +83,11 @@ export async function fetchRangeSeries(
   period2Sec: number
 ): Promise<QuotePoint[]> {
   const interval = pickInterval(period1Sec, period2Sec);
-  return fetchYahooChart(symbol, `period1=${period1Sec}&period2=${period2Sec}&interval=${interval}`, 3600);
+  return fetchYahooChart(
+    symbol,
+    `period1=${period1Sec}&period2=${period2Sec}&interval=${interval}&includePrePost=false`,
+    3600
+  );
 }
 
 // Today's session at 5-minute bars (Yahoo's "range=1d" resolves the
@@ -70,5 +95,5 @@ export async function fetchRangeSeries(
 // Short revalidate window since this is meant to track the day as it
 // happens, not just show its eventual shape.
 export async function fetchTodaySeries(symbol: string): Promise<QuotePoint[]> {
-  return fetchYahooChart(symbol, "range=1d&interval=5m", 300);
+  return fetchYahooChart(symbol, "range=1d&interval=5m&includePrePost=false", 300);
 }
