@@ -110,16 +110,28 @@ export default async function ComparePage() {
   const runsByAgent: Record<string, Run[]> = {};
   for (const { agent, runs } of results) runsByAgent[agent.id] = runs;
 
-  const seriesByAgent = buildPerAgentPctSeries(runsByAgent);
-  const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
-  const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
   const agentIds = agents.map((a) => a.id);
 
-  // Date range spanning every agent's run history, used to align the
-  // benchmark (calendar-time-based) onto the same chart as the agents
-  // (run-index-based).
-  const allRunTimes = Object.values(runsByAgent)
-    .flatMap((runs) => runs.map((r) => new Date(r.run_at).getTime()))
+  // Agents need a minimum run history before their line is meaningful on
+  // the return chart — a 20-run line spreads 20 points across the same
+  // visual width as a 200-run line, looks flat, and skews the y-axis.
+  // 50 runs ≈ 1–2 days of 15-min polling; any agent below this threshold
+  // is shown in the stats cards but excluded from the chart until it
+  // accumulates enough history. No code change needed when it crosses the
+  // threshold — the chart just starts including it automatically.
+  const MIN_CHART_RUNS = 50;
+  const chartAgentIds = agentIds.filter((id) => (runsByAgent[id]?.length ?? 0) >= MIN_CHART_RUNS);
+
+  const seriesByAgent = buildPerAgentPctSeries(
+    Object.fromEntries(chartAgentIds.map((id) => [id, runsByAgent[id]]))
+  );
+  const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
+  const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
+
+  // Date range uses only chart-eligible agents so a brand-new agent
+  // doesn't anchor VTI to today instead of when the established agents started.
+  const allRunTimes = chartAgentIds
+    .flatMap((id) => (runsByAgent[id] ?? []).map((r) => new Date(r.run_at).getTime()))
     .filter((t) => Number.isFinite(t));
   const rangeStartMs = allRunTimes.length
     ? Math.min(...allRunTimes)
@@ -179,7 +191,7 @@ export default async function ComparePage() {
         </div>
         <DualReturnChart
           seriesByAgent={seriesByAgent}
-          agentIds={agentIds}
+          agentIds={chartAgentIds}
           colors={colors}
           labels={labels}
           benchmarkSeries={benchmarkSeries}
@@ -194,3 +206,4 @@ export default async function ComparePage() {
     </div>
   );
 }
+
