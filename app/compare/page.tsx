@@ -1,4 +1,4 @@
-import { getRuns, type Run } from "../../lib/supabase";
+import { getRuns, getBenchmarkPrices, type Run } from "../../lib/supabase";
 import { getAllAgents, type AgentMeta } from "../../lib/agents";
 import { fmtTime } from "../run-helpers";
 import {
@@ -112,10 +112,8 @@ export default async function ComparePage() {
 
   const agentIds = agents.map((a) => a.id);
 
-  // Date range for VTI benchmark — use only agents with meaningful history
-  // so a brand-new agent doesn't anchor VTI to today instead of when the
-  // established agents started. Agents with < 50 runs still appear in the
-  // chart; this only affects where the shared time axis begins.
+  // Date range anchor — use only agents with meaningful history so a brand-new
+  // agent doesn't pull the VTI start date forward to today.
   const MIN_BENCHMARK_RUNS = 50;
   const anchorAgentIds = agentIds.filter((id) => (runsByAgent[id]?.length ?? 0) >= MIN_BENCHMARK_RUNS);
   const allRunTimes = (anchorAgentIds.length ? anchorAgentIds : agentIds)
@@ -126,37 +124,52 @@ export default async function ComparePage() {
     : Date.now() - 30 * 24 * 60 * 60 * 1000;
   const rangeEndMs = Date.now();
 
-  // All series (agents + VTI) now use the same [rangeStartMs, rangeEndMs]
-  // calendar-time window for their xFrac. This means:
-  //  - A newer agent like Hermes shows its line starting partway across
-  //    the chart rather than spanning the full width (run-index mode)
-  //  - Tooltip dates are consistent across all series at the same x position
-  const seriesByAgent = buildPerAgentPctSeries(runsByAgent, rangeStartMs, rangeEndMs);
+  // Fetch VTI from Supabase (written by Plutus's snapshot via Alpaca).
+  // Fallback to Yahoo Finance in case the table is empty on first deploy.
+  const rangeStartDate = new Date(rangeStartMs).toISOString().slice(0, 10);
+  let rawVTI: { date: string; close: number }[] = [];
+  try {
+    rawVTI = await getBenchmarkPrices("VTI", rangeStartDate);
+  } catch {
+    // Supabase failed or table empty — try Yahoo Finance as one-time fallback
+    try {
+      rawVTI = await fetchRangeSeries(
+        "VTI",
+        Math.floor(rangeStartMs / 1000) - 86400,
+        Math.floor(rangeEndMs / 1000)
+      );
+    } catch {
+      rawVTI = [];
+    }
+  }
+
+  // Build the shared day-slot index from all dates that appear in any series.
+  // Each calendar date gets equal horizontal width; runs within a day are
+  // evenly spaced by count — no overnight diagonal straight-line artifacts.
+  const allDateStrs = new Set<string>();
+  for (const runs of Object.values(runsByAgent)) {
+    for (const r of runs) if (r.account_equity != null) allDateStrs.add(r.run_at.slice(0, 10));
+  }
+  for (const p of rawVTI) allDateStrs.add(p.date.slice(0, 10));
+  const daySlots = Array.from(allDateStrs).sort(); // ["2026-06-28", "2026-06-29", ...]
+  const daySlotIndex: Record<string, number> = Object.fromEntries(daySlots.map((d, i) => [d, i]));
+  const daySlotCount = daySlots.length || 1;
+
+  const seriesByAgent = buildPerAgentPctSeries(runsByAgent, daySlotIndex, daySlotCount);
   const colors: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.accent]));
   const labels: Record<string, string> = Object.fromEntries(agents.map((a) => [a.id, a.label]));
 
   let benchmarkSeries: PctSeriesPoint[] = [];
-  try {
-    // VTI tracks the entire U.S. stock market (~3,600+ companies), not just
-    // the S&P 500's large-caps — a closer match to "stocks in general."
-    const raw = await fetchRangeSeries(
-      "VTI",
-      Math.floor(rangeStartMs / 1000) - 86400,
-      Math.floor(rangeEndMs / 1000)
-    );
-    benchmarkSeries = buildBenchmarkPctSeries(raw, rangeStartMs, rangeEndMs);
-  } catch {
-    // If Yahoo's endpoint is unreachable or rate-limited, just skip the
-    // benchmark line rather than breaking the whole compare page.
-    benchmarkSeries = [];
+  if (rawVTI.length >= 2) {
+    benchmarkSeries = buildBenchmarkPctSeries(rawVTI, rangeStartMs, rangeEndMs, daySlotIndex, daySlotCount);
   }
 
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 640, marginBottom: 20 }}>
-        Head-to-head — % return since each agent&apos;s first logged run, plotted on a shared calendar
-        timeline so newer agents like Hermes appear starting mid-chart rather than spanning the full
-        width. Total U.S. stock market (VTI) shown as a reference line over the same period.
+        Head-to-head — % return since each agent&apos;s first logged run. Each calendar day gets equal
+        chart width so overnight gaps don&apos;t show as straight lines. Newer agents (like Hermes) start
+        mid-chart at their actual start date. Total U.S. stock market (VTI) shown as a reference line.
       </p>
 
       <div
@@ -191,6 +204,7 @@ export default async function ComparePage() {
           colors={colors}
           labels={labels}
           benchmarkSeries={benchmarkSeries}
+          daySlots={daySlots}
         />
       </div>
 
@@ -202,4 +216,3 @@ export default async function ComparePage() {
     </div>
   );
 }
-
