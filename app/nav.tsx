@@ -5,12 +5,10 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid, ArrowLeftRight, Zap, ShieldCheck, Bot, Coins, type LucideIcon } from "lucide-react";
 import NotifyBell from "./notify-bell";
 import type { AgentMeta } from "../lib/agents";
+import { useEffect, useState } from "react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; accent?: string; match: (p: string) => boolean };
 
-// Known hardcoded agents get a distinct icon; anything dynamic (or any
-// future hardcoded agent that forgets to add one here) falls back to a
-// generic bot icon rather than breaking.
 const AGENT_ICONS: Record<string, LucideIcon> = { plutus: Zap, helios: ShieldCheck, hermes: Coins };
 
 function buildItems(agents: AgentMeta[]): NavItem[] {
@@ -27,9 +25,24 @@ function buildItems(agents: AgentMeta[]): NavItem[] {
   ];
 }
 
+function isMarketOpenNow(): boolean {
+  const now = new Date();
+  const nyTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = nyTime.getDay(); // 0=Sun, 6=Sat
+  const mins = nyTime.getHours() * 60 + nyTime.getMinutes();
+  return day >= 1 && day <= 5 && mins >= 570 && mins < 960; // 9:30–16:00 ET
+}
+
 export default function Nav({ agents }: { agents: AgentMeta[] }) {
   const pathname = usePathname();
   const items = buildItems(agents);
+  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setMarketOpen(isMarketOpenNow());
+    const id = setInterval(() => setMarketOpen(isMarketOpenNow()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <>
@@ -55,6 +68,7 @@ export default function Nav({ agents }: { agents: AgentMeta[] }) {
             flexWrap: "wrap",
           }}
         >
+          {/* Wordmark */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src="/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: 7, flexShrink: 0 }} />
             <div>
@@ -69,7 +83,57 @@ export default function Nav({ agents }: { agents: AgentMeta[] }) {
               >
                 Trading Agents
               </div>
-              <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 1 }}>paper trading — simulated funds</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                {/* "paper · sim" badge chip */}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    fontSize: 10,
+                    fontFamily: "var(--font-mono)",
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                    color: "var(--text-faint)",
+                    border: "1px solid var(--border-hairline)",
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  paper · sim
+                </div>
+                {/* Market status — suppressed until hydrated to avoid SSR mismatch */}
+                {marketOpen !== null && (
+                  <>
+                    <style>{`@keyframes mkt-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }`}</style>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: "0.07em",
+                        textTransform: "uppercase",
+                        color: marketOpen ? "var(--accent-buy)" : "var(--text-faint)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 5,
+                          height: 5,
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          background: marketOpen ? "var(--accent-buy)" : "var(--text-faint)",
+                          animation: marketOpen ? "mkt-pulse 2s ease-in-out infinite" : "none",
+                        }}
+                      />
+                      {marketOpen ? "open" : "closed"}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -78,7 +142,7 @@ export default function Nav({ agents }: { agents: AgentMeta[] }) {
             <nav className="desktop-nav" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {items.map((item) => {
                 const isActive = item.match(pathname);
-                const color = isActive ? item.accent || "var(--text-primary)" : "var(--text-muted)";
+                const accent = item.accent;
                 return (
                   <Link
                     key={item.href}
@@ -93,9 +157,17 @@ export default function Nav({ agents }: { agents: AgentMeta[] }) {
                       letterSpacing: "0.02em",
                       padding: "7px 12px",
                       borderRadius: 999,
-                      color,
-                      background: isActive ? "var(--bg-surface-2)" : "transparent",
-                      border: isActive ? "1px solid var(--border-hairline)" : "1px solid transparent",
+                      color: isActive ? (accent || "var(--text-primary)") : "var(--text-muted)",
+                      background: isActive
+                        ? accent
+                          ? `color-mix(in srgb, ${accent} 10%, var(--bg-surface-2))`
+                          : "var(--bg-surface-2)"
+                        : "transparent",
+                      border: isActive
+                        ? accent
+                          ? `1px solid color-mix(in srgb, ${accent} 28%, var(--border-hairline))`
+                          : "1px solid var(--border-hairline)"
+                        : "1px solid transparent",
                       transition: "background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease)",
                     }}
                   >
