@@ -439,7 +439,10 @@ export function QuietRunsEntry({
 // to the losses, whether the edge nets positive, and risk-adjusted return.
 export function AnalyticsBar({ runs }: { runs: Run[] }) {
   const s = computeAdvancedStats(runs);
-  if (s.closedTrades === 0) return null;
+  // Trade-based stats need at least one closed sell, but Sharpe and max
+  // drawdown only need equity history — a buy-and-hold agent (Helios)
+  // should still get its risk numbers, with the trade columns as dashes.
+  if (s.closedTrades === 0 && s.sharpe == null && s.maxDrawdownPct === 0) return null;
   const pfColor =
     s.profitFactor == null
       ? undefined
