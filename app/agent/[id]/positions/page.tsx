@@ -1,16 +1,31 @@
 import { notFound } from "next/navigation";
-import { getPositions, type Position } from "../../../../lib/supabase";
+import { getPositions, getEntryDecisions, type Position, type EntryDecision } from "../../../../lib/supabase";
 import { getAgentMeta } from "../../../../lib/agents";
-import { fmtMoney } from "../../../run-helpers";
+import { fmtMoney, fmtTime } from "../../../run-helpers";
 import AgentSubNav from "../../../agent-sub-nav";
 import { getTickerName } from "../../../../lib/ticker-names";
 import { PortfolioPieChart } from "./PieChart";
 import { DaySparkline } from "./DaySparkline";
 import { fetchTodaySeries, type QuotePoint } from "../../../../lib/quotes";
 
-function PositionCard({ position, accent, todaySeries }: { position: Position; accent: string; todaySeries: QuotePoint[] }) {
+function PositionCard({
+  position,
+  accent,
+  todaySeries,
+  entry,
+}: {
+  position: Position;
+  accent: string;
+  todaySeries: QuotePoint[];
+  entry?: EntryDecision;
+}) {
   const pl = position.unrealized_pl_pct;
   const plColor = pl === null || pl === undefined || pl === 0 ? "var(--text-muted)" : pl > 0 ? "var(--accent-buy)" : "var(--accent-sell)";
+  // Dollar P/L alongside the % — cost basis vs current market value.
+  const plDollars =
+    position.avg_entry_price != null && position.current_price != null
+      ? (position.current_price - position.avg_entry_price) * position.qty
+      : null;
 
   return (
     <div
@@ -62,6 +77,12 @@ function PositionCard({ position, accent, todaySeries }: { position: Position; a
           <div style={{ fontSize: 10, letterSpacing: "0.06em", color: "var(--text-faint)" }}>P/L</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: plColor }}>
             {pl == null ? "—" : `${pl >= 0 ? "+" : ""}${pl.toFixed(2)}%`}
+            {plDollars != null ? (
+              <span style={{ fontSize: 12, fontWeight: 500, marginLeft: 6 }}>
+                ({plDollars >= 0 ? "+" : ""}
+                {fmtMoney(plDollars)})
+              </span>
+            ) : null}
           </div>
         </div>
         <div>
@@ -71,6 +92,37 @@ function PositionCard({ position, accent, todaySeries }: { position: Position; a
       </div>
 
       <DaySparkline points={todaySeries} />
+
+      {entry?.reasoning ? (
+        <details style={{ marginTop: 10 }}>
+          <summary
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.05em",
+              color: "var(--text-faint)",
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+          >
+            WHY THE AGENT BOUGHT · {fmtTime(entry.created_at)}
+          </summary>
+          <p
+            style={{
+              fontSize: 13,
+              lineHeight: 1.55,
+              color: "var(--text-muted)",
+              margin: "8px 0 0",
+              borderLeft: "2px solid var(--border-hairline)",
+              paddingLeft: 12,
+            }}
+          >
+            {entry.reasoning}
+            {entry.confidence ? (
+              <span style={{ color: "var(--text-faint)" }}> — {entry.confidence} confidence at entry</span>
+            ) : null}
+          </p>
+        </details>
+      ) : null}
 
       <div style={{ height: 3, borderRadius: 2, background: accent, opacity: 0.5, marginTop: 12 }} />
     </div>
@@ -92,6 +144,11 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
 
   const totalMarketValue = positions.reduce((sum, p) => sum + (p.market_value ?? 0), 0);
   const snapshotAt = positions[0]?.snapshot_at;
+
+  const entryBySymbol = await getEntryDecisions(
+    id,
+    positions.map((p) => p.symbol)
+  );
 
   const todaySeriesBySymbol: Record<string, QuotePoint[]> = {};
   if (positions.length > 0) {
@@ -164,7 +221,13 @@ export default async function PositionsPage({ params }: { params: Promise<{ id: 
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {positions.map((p) => (
-              <PositionCard key={p.id} position={p} accent={agent.accent} todaySeries={todaySeriesBySymbol[p.symbol] || []} />
+              <PositionCard
+                key={p.id}
+                position={p}
+                accent={agent.accent}
+                todaySeries={todaySeriesBySymbol[p.symbol] || []}
+                entry={entryBySymbol[p.symbol]}
+              />
             ))}
           </div>
         </>

@@ -1,4 +1,34 @@
 import type { Run, Decision, Position, AccountState } from "../lib/supabase";
+import { computeAdvancedStats, fmtStatPct, fmtRatio } from "../lib/analytics";
+
+// ── Log grouping ─────────────────────────────────────────────────────────────
+// Consecutive runs where nothing happened (no executed trade, no error) get
+// collapsed into one expandable row, so the log reads as a sequence of
+// meaningful events instead of a wall of near-identical check-ins.
+
+export type RunGroup = { kind: "run"; run: Run } | { kind: "quiet"; runs: Run[] };
+
+export function groupQuietRuns(runs: Run[]): RunGroup[] {
+  const groups: RunGroup[] = [];
+  let quiet: Run[] = [];
+  const flush = () => {
+    if (quiet.length === 0) return;
+    // A single quiet run isn't worth a collapse UI — show it normally.
+    if (quiet.length === 1) groups.push({ kind: "run", run: quiet[0] });
+    else groups.push({ kind: "quiet", runs: quiet });
+    quiet = [];
+  };
+  for (const run of runs) {
+    const isQuiet = !run.error && tradeCount(run) === 0;
+    if (isQuiet) quiet.push(run);
+    else {
+      flush();
+      groups.push({ kind: "run", run });
+    }
+  }
+  flush();
+  return groups;
+}
 
 export function triggerBadge(trigger: string | null) {
   if (trigger === "workflow_dispatch") {
@@ -356,6 +386,88 @@ export function RunEntry({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Collapsed row for a stretch of consecutive quiet runs. The newest run's
+// reasoning is shown as the row's one-line summary; expanding reveals every
+// run in the stretch, fully rendered.
+export function QuietRunsEntry({
+  runs,
+  positionsBySymbol = {},
+}: {
+  runs: Run[];
+  positionsBySymbol?: Record<string, Position>;
+}) {
+  const newest = runs[0];
+  const oldest = runs[runs.length - 1];
+  const holdDecisions = runs.reduce((n, r) => n + (r.trading_agent_decisions || []).length, 0);
+  return (
+    <details style={{ marginBottom: 28 }}>
+      <summary
+        style={{
+          display: "flex",
+          gap: 16,
+          cursor: "pointer",
+          userSelect: "none",
+          listStyle: "none",
+        }}
+      >
+        <div style={{ width: 3, borderRadius: 2, background: "var(--border-hairline)", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            {fmtTime(oldest.run_at)} → {fmtTime(newest.run_at)}
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 3 }}>
+            {runs.length} runs, no trades{holdDecisions > 0 ? ` (${holdDecisions} hold decisions)` : ""} — tap to
+            expand
+          </div>
+        </div>
+      </summary>
+      <div style={{ marginTop: 16 }}>
+        {runs.map((run) => (
+          <RunEntry key={run.id} run={run} positionsBySymbol={positionsBySymbol} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+// ── Analytics bar ─────────────────────────────────────────────────────────────
+// The numbers that make a win rate meaningful: how big the wins are relative
+// to the losses, whether the edge nets positive, and risk-adjusted return.
+export function AnalyticsBar({ runs }: { runs: Run[] }) {
+  const s = computeAdvancedStats(runs);
+  if (s.closedTrades === 0) return null;
+  const pfColor =
+    s.profitFactor == null
+      ? undefined
+      : s.profitFactor >= 1
+        ? "var(--accent-buy)"
+        : "var(--accent-sell)";
+  return (
+    <div
+      className="card"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))",
+        gap: 16,
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border-hairline)",
+        borderRadius: 10,
+        padding: "16px 18px",
+        marginBottom: 24,
+      }}
+    >
+      <StatBlock label="Closed trades" value={String(s.closedTrades)} />
+      <StatBlock label="Win rate" value={s.winRate == null ? "—" : `${s.winRate.toFixed(0)}%`} />
+      <StatBlock label="Avg win" value={fmtStatPct(s.avgWinPct)} color="var(--accent-buy)" />
+      <StatBlock label="Avg loss" value={fmtStatPct(s.avgLossPct)} color="var(--accent-sell)" />
+      <StatBlock label="Profit factor" value={fmtRatio(s.profitFactor)} color={pfColor} />
+      <StatBlock label="Expectancy / trade" value={fmtStatPct(s.expectancyPct)} />
+      <StatBlock label="Sharpe (ann.)" value={fmtRatio(s.sharpe)} />
+      <StatBlock label="Max drawdown" value={fmtStatPct(s.maxDrawdownPct, false)} />
     </div>
   );
 }

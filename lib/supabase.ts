@@ -111,6 +111,45 @@ export async function getLatestRun(agentId: string): Promise<Run | null> {
   return runs[0] ?? null;
 }
 
+// Provenance for the positions page: the most recent executed BUY decision
+// per symbol for this agent, i.e. "the run where the agent decided to open
+// (or last add to) this position" — with its reasoning and timestamp.
+export type EntryDecision = {
+  symbol: string;
+  reasoning: string | null;
+  confidence: string | null;
+  entry_price: number | null;
+  created_at: string;
+  run_id: number;
+};
+
+export async function getEntryDecisions(
+  agentId: string,
+  symbols: string[]
+): Promise<Record<string, EntryDecision>> {
+  if (symbols.length === 0) return {};
+  const params = new URLSearchParams({
+    select: "symbol,reasoning,confidence,entry_price,created_at,run_id,trading_agent_runs!inner(agent_id)",
+    action: "eq.buy",
+    order_id: "not.is.null",
+    symbol: `in.(${symbols.join(",")})`,
+    "trading_agent_runs.agent_id": `eq.${agentId}`,
+    order: "created_at.desc",
+    limit: "200",
+  });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/trading_agent_decisions?${params.toString()}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
+  if (!res.ok) return {}; // provenance is additive — never break the page over it
+  const rows: EntryDecision[] = await res.json();
+  const bySymbol: Record<string, EntryDecision> = {};
+  for (const row of rows) {
+    if (!bySymbol[row.symbol]) bySymbol[row.symbol] = row; // newest first
+  }
+  return bySymbol;
+}
+
 export async function getInstructions(agentId: string): Promise<{ content: string; updated_at: string }> {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/agent_instructions?agent_id=eq.${agentId}&select=content,updated_at`,

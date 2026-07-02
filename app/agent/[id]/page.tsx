@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getRuns, getPositions, getAccountState, type Run, type Position, type AccountState } from "../../../lib/supabase";
 import { getAgentMeta } from "../../../lib/agents";
-import { runHasTrade, SummaryBar, RunEntry } from "../../run-helpers";
+import { runHasTrade, SummaryBar, AnalyticsBar, RunEntry, QuietRunsEntry, groupQuietRuns } from "../../run-helpers";
 import AgentSubNav from "../../agent-sub-nav";
 import ManualRunPanel from "../../manual-run-panel";
 
@@ -67,6 +67,8 @@ export default async function AgentLogPage({
         <>
           <SummaryBar runs={allRuns} accountState={accountState} displayScale={agent.displayScale ?? 1} />
 
+          <AnalyticsBar runs={allRuns} />
+
           <div
             style={{
               display: "flex",
@@ -100,7 +102,13 @@ export default async function AgentLogPage({
               No runs with executed trades yet.
             </div>
           ) : (
-            visible.map((run) => <RunEntry key={run.id} run={run} positionsBySymbol={positionsBySymbol} />)
+            groupQuietRuns(visible).map((g) =>
+              g.kind === "run" ? (
+                <RunEntry key={g.run.id} run={g.run} positionsBySymbol={positionsBySymbol} />
+              ) : (
+                <QuietRunsEntry key={`quiet-${g.runs[0].id}`} runs={g.runs} positionsBySymbol={positionsBySymbol} />
+              )
+            )
           )}
 
           {hasMore ? (

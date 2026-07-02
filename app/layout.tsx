@@ -20,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Trading Agents — Paper Trading Dashboard",
-  description: "Overview and trade logs for two autonomous paper trading agents: Plutus and Helios.",
+  description: "Live decisions, trade logs, and performance analytics for autonomous paper trading agents — Plutus, Helios, and Hermes.",
   manifest: "/manifest.json",
   icons: {
     icon: [
